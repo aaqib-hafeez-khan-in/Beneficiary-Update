@@ -752,7 +752,9 @@ export default function App() {
 
         const nextMeta = await getAssignmentMeta(token, nextAsg.ID, nextActId);
         setUiResources(nextMeta.uiResources?.resources || null);
+        setRootViewName(nextMeta.uiResources?.root?.config?.name || "");
         setActionButtons(nextMeta.uiResources?.actionButtons || null);
+        setApiData(nextMeta.data || null);
 
         const nextContent = nextMeta.data?.caseInfo?.content || {};
         setFormValues({ ...nextContent });
@@ -887,8 +889,6 @@ export default function App() {
       }
 
       const resJson = await res.json();
-      setUiResources(resJson.uiResources?.resources || null);
-      setActionButtons(resJson.uiResources?.actionButtons || null);
 
       const nextAsg = resJson.data?.caseInfo?.assignments?.[0];
       const nextAct = nextAsg?.actions?.[0];
@@ -898,6 +898,18 @@ export default function App() {
       setAssignmentId(nextAsg?.ID || assignmentId);
       setActionId(nextAct?.ID || "");
       setStages(resJson.data?.caseInfo?.stages || stages);
+      setCaseData(resJson.data?.caseInfo || caseData);
+
+      /* Re-fetch next assignment metadata so uiResources + rootViewName stay in sync */
+      if (nextAsg?.ID && nextAct?.ID) {
+        try {
+          const nextMeta = await getAssignmentMeta(token, nextAsg.ID, nextAct.ID);
+          setUiResources(nextMeta.uiResources?.resources || null);
+          setRootViewName(nextMeta.uiResources?.root?.config?.name || "");
+          setActionButtons(nextMeta.uiResources?.actionButtons || null);
+          setApiData(nextMeta.data || null);
+        } catch (_) { /* non-fatal – fall through */ }
+      }
 
       setReviewRows((nextContent?.RequirementLists || reqRows).map((r) => ({ ...r })));
       setIfMatch("");
@@ -910,7 +922,7 @@ export default function App() {
       setStep("COLLECT_REQ");
       addToast(e.message, "error");
     }
-  }, [token, assignmentId, actionId, reqRows, formValues, stages, ifMatch, addToast]);
+  }, [token, assignmentId, actionId, reqRows, formValues, stages, ifMatch, caseData, getAssignmentMeta, addToast]);
 
   /* ── Review row change ──────────────────────────────────────── */
   const handleReviewRowChange = useCallback((rowIndex, field, value) => {
