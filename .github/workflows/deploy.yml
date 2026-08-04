@@ -32,6 +32,13 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
+          VITE_CLIENT_SECRET: ${{ secrets.VITE_CLIENT_SECRET }}
+          VITE_TOKEN_URL: ${{ secrets.VITE_TOKEN_URL }}
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          VITE_ASSIGNMENT_API_BASE: ${{ secrets.VITE_ASSIGNMENT_API_BASE }}
+          VITE_CASE_ID: ${{ secrets.VITE_CASE_ID }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
