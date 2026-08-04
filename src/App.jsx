@@ -34,7 +34,7 @@ const getFieldMeta = (uiResources, fieldId) => {
 
 const getFieldLabel = (uiResources, fieldId, fallback) => {
   const meta = getFieldMeta(uiResources, fieldId);
-  return meta.label || fallback;
+  return meta.label || fallback || fieldId;
 };
 
 const getFieldOptions = (uiResources, fieldId, fallbackList = []) => {
@@ -45,6 +45,248 @@ const getFieldOptions = (uiResources, fieldId, fallbackList = []) => {
   }
   return fallbackList;
 };
+
+const resolveOptions = (fieldId, fieldConfig, uiResources, apiData) => {
+  const meta = getFieldMeta(uiResources, fieldId);
+  if (meta.datasource?.tableType === "PromptList" && Array.isArray(meta.datasource.records)) {
+    return meta.datasource.records.map((r) => ({ label: r.value || r.key, value: r.key }));
+  }
+
+  const ds = fieldConfig?.datasource;
+  if (ds && typeof ds === "object" && ds.source) {
+    const match = ds.source.match(/@DATASOURCE\s+([\w_]+)\.pxResults/);
+    if (match) {
+      const dpName = match[1];
+      const results = apiData?.[dpName]?.pxResults || 
+                      apiData?.shared?.[dpName]?.[dpName]?.pxResults || 
+                      apiData?.shared?.[dpName]?.pxResults;
+      if (Array.isArray(results)) {
+        const valProp = ds.fields?.value?.replace(/^@P \./, "") || "pyCallingCode";
+        return results.map((item) => ({
+          label: item[valProp] || item.pyCallingCode || "",
+          value: item[valProp] || item.pyCallingCode || ""
+        }));
+      }
+    }
+  }
+
+  if (fieldId === "ClaimantType") {
+    return [
+      { label: "Nominee", value: "Nominee" },
+      { label: "Legal Heir", value: "Legal Heir" },
+      { label: "Executor", value: "Executor" }
+    ];
+  }
+  if (fieldId === "RelationshipWithInsured") {
+    return [
+      { label: "Spouse", value: "Spouse" },
+      { label: "Father", value: "Father" },
+      { label: "Mother", value: "Mother" },
+      { label: "Daughter", value: "Daughter" },
+      { label: "Son", value: "Son" },
+      { label: "In Laws", value: "In Laws" }
+    ];
+  }
+  return [];
+};
+
+function renderFieldInput(type, fieldId, config, uiResources, formValues, onChange, apiData, _onFileSelect, _uploading) {
+  const value = formValues[fieldId] || "";
+
+  switch (type) {
+    case "TextInput":
+      return (
+        <input
+          type="text"
+          className="form-input"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value)}
+        />
+      );
+    case "TextArea":
+      return (
+        <textarea
+          className="form-input"
+          rows={3}
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value)}
+        />
+      );
+    case "Integer":
+      return (
+        <input
+          type="number"
+          step="1"
+          className="form-input"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value === "" ? "" : parseInt(e.target.value, 10))}
+        />
+      );
+    case "Decimal":
+      return (
+        <input
+          type="number"
+          step="any"
+          className="form-input"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value === "" ? "" : parseFloat(e.target.value))}
+        />
+      );
+    case "Email":
+      return (
+        <input
+          type="email"
+          className="form-input"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value)}
+        />
+      );
+    case "Date":
+      return (
+        <input
+          type="date"
+          className="form-input"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value)}
+        />
+      );
+    case "Dropdown": {
+      const options = resolveOptions(fieldId, config, uiResources, apiData);
+      return (
+        <select
+          className="form-select"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value)}
+        >
+          <option value="">{config.placeholder || "Select..."}</option>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    case "Phone": {
+      const callingCodeOptions = resolveOptions(fieldId, config, uiResources, apiData);
+      const callingCodeVal = formValues["pyCallingCode"] || "";
+      return (
+        <div style={{ display: "flex", gap: "8px" }}>
+          <select
+            className="form-select"
+            style={{ width: "100px", flexShrink: 0 }}
+            value={callingCodeVal}
+            onChange={(e) => onChange("pyCallingCode", e.target.value)}
+          >
+            <option value="">Code</option>
+            {callingCodeOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="tel"
+            className="form-input"
+            style={{ flexGrow: 1 }}
+            value={value}
+            onChange={(e) => onChange(fieldId, e.target.value)}
+          />
+        </div>
+      );
+    }
+    default:
+      return (
+        <input
+          type="text"
+          className="form-input"
+          value={value}
+          onChange={(e) => onChange(fieldId, e.target.value)}
+        />
+      );
+  }
+}
+
+function DynamicForm({ viewName, uiResources, formValues, onChange, apiData, onFileSelect, uploading }) {
+  if (!viewName || !uiResources?.views) return null;
+  const viewDefs = uiResources.views[viewName];
+  if (!viewDefs || !viewDefs.length) return null;
+
+  const viewDef = viewDefs[0];
+  
+  const renderChildren = (children) => {
+    if (!children || !Array.isArray(children)) return null;
+    return children.map((child, idx) => {
+      const type = child.type;
+      const config = child.config || {};
+
+      if (type === "Region") {
+        return (
+          <div key={idx} className={`region-${child.name || idx}`}>
+            {renderChildren(child.children)}
+          </div>
+        );
+      }
+
+      if (type === "Group") {
+        return (
+          <div key={config.id || idx} className="form-group-card">
+            {config.showHeading && config.heading && (
+              <h3 className="form-group-heading">{config.heading.replace(/^@L /, "")}</h3>
+            )}
+            <div className="form-grid">
+              {renderChildren(child.children)}
+            </div>
+          </div>
+        );
+      }
+
+      if (type === "reference") {
+        if (config.type === "view") {
+          return (
+            <DynamicForm
+              key={idx}
+              viewName={config.name}
+              uiResources={uiResources}
+              formValues={formValues}
+              onChange={onChange}
+              apiData={apiData}
+              onFileSelect={onFileSelect}
+              uploading={uploading}
+            />
+          );
+        }
+      }
+
+      const isField = [
+        "TextInput", "Dropdown", "Phone", "Email", "Date", "TextArea", "Integer", "Decimal", "Stages", "DeferLoad"
+      ].includes(type);
+
+      if (isField) {
+        const fieldVal = config.value || "";
+        const fieldId = fieldVal.replace(/^@P \./, "").replace(/^@USER \./, "") || child.name;
+        
+        if (!fieldId) return null;
+
+        if (type === "Stages") return null;
+        if (type === "DeferLoad") return null;
+
+        const label = getFieldLabel(uiResources, fieldId, config.label?.replace(/^@FL \./, "")?.replace(/^@L /, ""));
+
+        return (
+          <div key={fieldId} className="field-container">
+            <label className="field-label">{label}</label>
+            {renderFieldInput(type, fieldId, config, uiResources, formValues, onChange, apiData, onFileSelect, uploading)}
+          </div>
+        );
+      }
+
+      return null;
+    });
+  };
+
+  return <div className="dynamic-view">{renderChildren(viewDef.children)}</div>;
+}
 
 /* ── Toast component ─────────────────────────────────────────── */
 function Toast({ toasts, onRemove }) {
@@ -271,7 +513,7 @@ export default function App() {
   const [caseData,        setCaseData]         = useState(null);
   const [stages,          setStages]           = useState([]);
 
-  /* assignment (Collect Additional Requirements) */
+  /* assignment */
   const [assignmentId,    setAssignmentId]     = useState("");
   const [actionId,        setActionId]         = useState("");
 
@@ -279,14 +521,17 @@ export default function App() {
   const [uiResources,      setUiResources]      = useState(null);
   const [actionButtons,    setActionButtons]    = useState(null);
 
-  /* requirement rows (with injected _file, _attachmentId) */
+  /* dynamic Form Values */
+  const [formValues,      setFormValues]       = useState({});
+
+  /* requirement rows (fallback for requirements workflow) */
   const [reqRows,         setReqRows]          = useState([]);
   const [uploading,       setUploading]        = useState({});  /* { rowIndex: bool } */
 
   /* If-Match header for PATCH */
   const [ifMatch,         setIfMatch]          = useState("");
 
-  /* review step state */
+  /* review step state (fallback for requirements workflow) */
   const [reviewRows,      setReviewRows]       = useState([]);
   const [reviewSubmitting,setReviewSubmitting] = useState(false);
 
@@ -367,84 +612,6 @@ export default function App() {
     return res.json(); // { ID: "..." }
   }, []);
 
-  /* ── 5. Submit CollectAdditionalRequirements (PATCH) ────────── */
-  const submitCollect = useCallback(async (tok, asgId, actId, rows) => {
-    const pageInstructions = [];
-
-    rows.forEach((_, idx) => {
-      const listIndex = idx + 1;
-      pageInstructions.push({ content: {}, target: ".RequirementLists", listIndex, instruction: "UPDATE" });
-    });
-
-    rows.forEach((row, idx) => {
-      if (row._attachmentId) {
-        pageInstructions.push({
-          target:      `.RequirementLists(${idx + 1}).RequiredAttachment`,
-          content:     { ID: row._attachmentId },
-          instruction: "REPLACE",
-        });
-      }
-    });
-
-    const headers = {
-      "Content-Type":  "application/json",
-      Authorization:   `Bearer ${tok}`,
-    };
-    if (ifMatch) headers["If-Match"] = ifMatch;
-
-    const res = await fetch(
-      `${API_BASE}/assignments/${encodeId(asgId)}/actions/${actId}?viewType=form`,
-      {
-        method:  "PATCH",
-        headers,
-        body:    JSON.stringify({ content: {}, pageInstructions }),
-      }
-    );
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Submit failed: ${res.status} ${txt}`);
-    }
-    return res.json();
-  }, [ifMatch]);
-
-  /* ── 6. Submit ReviewAttachedDocuments (PATCH) ──────────────── */
-  const submitReview = useCallback(async (tok, asgId, actId, rows) => {
-    const pageInstructions = rows.map((row, idx) => ({
-      content: {
-        Requirement:     row.Requirement || "",
-        Detail:          row.Detail      || "",
-        Level:           row.Level       || "",
-        RequirementType: row.RequirementType || "",
-        Status:          row.Status      || "",
-      },
-      target:      ".RequirementLists",
-      listIndex:   idx + 1,
-      instruction: "UPDATE",
-    }));
-
-    const headers = {
-      "Content-Type":  "application/json",
-      Authorization:   `Bearer ${tok}`,
-    };
-    if (ifMatch) headers["If-Match"] = ifMatch;
-
-    const res = await fetch(
-      `${API_BASE}/assignments/${encodeId(asgId)}/actions/${actId}?viewType=form`,
-      {
-        method:  "PATCH",
-        headers,
-        body:    JSON.stringify({ content: {}, pageInstructions }),
-      }
-    );
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Review submit failed: ${res.status} ${txt}`);
-    }
-    return res.json();
-  }, [ifMatch]);
-
   /* ── Initialise: auth → case → assignment ──────────────────── */
   const init = useCallback(async () => {
     setStep("LOADING");
@@ -474,10 +641,12 @@ export default function App() {
       setUiResources(metaRes.uiResources?.resources || null);
       setActionButtons(metaRes.uiResources?.actionButtons || null);
 
-      const content = metaRes.data?.caseInfo?.content;
-      const reqList = content?.RequirementLists || [];
+      const content = metaRes.data?.caseInfo?.content || {};
+      setFormValues({ ...content });
 
+      const reqList = content?.RequirementLists || [];
       setReqRows(reqList.map((r) => ({ ...r, _file: null, _attachmentId: null })));
+      setReviewRows(reqList.map((r) => ({ ...r })));
 
       setStep("COLLECT_REQ");
       addToast("Case loaded successfully", "success");
@@ -494,10 +663,142 @@ export default function App() {
     init();
   }, [init]);
 
+  /* ── Dynamic Field Change Handler ──────────────────────────── */
+  const handleFieldChange = useCallback((fieldId, value) => {
+    setFormValues((prev) => ({
+      ...prev,
+      [fieldId]: value
+    }));
+  }, []);
+
+  /* ── Dynamic Form submission ───────────────────────────────── */
+  const handleDynamicSubmit = useCallback(async () => {
+    setStep("LOADING");
+    setLoadingMsg("Submitting assignment…");
+    setError("");
+    try {
+      const payloadContent = {};
+      const pageInstructions = [];
+
+      Object.keys(formValues).forEach((key) => {
+        if (Array.isArray(formValues[key])) {
+          formValues[key].forEach((row, idx) => {
+            pageInstructions.push({
+              content: {
+                Requirement:     row.Requirement     || "",
+                Detail:          row.Detail          || "",
+                Level:           row.Level           || "",
+                RequirementType: row.RequirementType || "",
+                Status:          row.Status          || "",
+              },
+              target:      `.${key}`,
+              listIndex:   idx + 1,
+              instruction: "UPDATE",
+            });
+            if (row._attachmentId) {
+              pageInstructions.push({
+                target:      `.${key}(${idx + 1}).RequiredAttachment`,
+                content:     { ID: row._attachmentId },
+                instruction: "REPLACE",
+              });
+            }
+          });
+        } else {
+          if (!key.startsWith("px") && !key.startsWith("py")) {
+            payloadContent[key] = formValues[key];
+          }
+        }
+      });
+
+      const bodyPayload = { content: payloadContent };
+      if (pageInstructions.length > 0) {
+        bodyPayload.pageInstructions = pageInstructions;
+      }
+
+      const headers = {
+        "Content-Type":  "application/json",
+        Authorization:   `Bearer ${token}`,
+      };
+      if (ifMatch) headers["If-Match"] = ifMatch;
+
+      const res = await fetch(
+        `${API_BASE}/assignments/${encodeId(assignmentId)}/actions/${actionId}?viewType=form`,
+        {
+          method:  "PATCH",
+          headers,
+          body:    JSON.stringify(bodyPayload),
+        }
+      );
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Submit failed: ${res.status} ${txt}`);
+      }
+
+      const resJson = await res.json();
+      addToast("Assignment submitted successfully!", "success");
+
+      const nextAsg = resJson.data?.caseInfo?.assignments?.[0];
+      if (nextAsg) {
+        const nextActId = nextAsg.actions?.[0]?.ID;
+        setAssignmentId(nextAsg.ID);
+        setActionId(nextActId || "");
+        setStages(resJson.data?.caseInfo?.stages || stages);
+        setCaseData(resJson.data?.caseInfo || caseData);
+
+        const nextMeta = await getAssignmentMeta(token, nextAsg.ID, nextActId);
+        setUiResources(nextMeta.uiResources?.resources || null);
+        setActionButtons(nextMeta.uiResources?.actionButtons || null);
+
+        const nextContent = nextMeta.data?.caseInfo?.content || {};
+        setFormValues({ ...nextContent });
+
+        if (Array.isArray(nextContent.RequirementLists)) {
+          setReqRows(nextContent.RequirementLists.map((r) => ({ ...r, _file: null, _attachmentId: null })));
+          setReviewRows(nextContent.RequirementLists.map((r) => ({ ...r })));
+          if (nextAsg.processID === "ReviewRequirements_Flow" || nextActId === "ReviewAttachedDocuments") {
+            setStep("REVIEW_DOCS");
+          } else {
+            setStep("COLLECT_REQ");
+          }
+        } else {
+          setStep("COLLECT_REQ");
+        }
+      } else {
+        setStep("SUCCESS");
+      }
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+      setStep("COLLECT_REQ");
+      addToast(e.message, "error");
+    }
+  }, [token, assignmentId, actionId, formValues, ifMatch, getAssignmentMeta, stages, caseData, addToast]);
+
+  /* ── Fill Form with Sample Data ────────────────────────────── */
+  const handleFillSampleData = useCallback(() => {
+    const sampleData = {
+      ClaimantName:                 "Alexander Fleming",
+      ClaimantType:                 "Nominee",
+      RelationshipWithInsured:      "Son",
+      pyCallingCode:                "+1",
+      ClaimantContactNumber:        "2025550143",
+      ClaimantEmailID:              "alexander.fleming@example.com",
+      ClaimantDOB:                  "1994-08-04",
+      ClaimantAddressLine1:         "123 Innovation Way, Suite 400",
+      ClaimantPostalCode:           "10001",
+      ClaimantIdentificationNumber: 846667806
+    };
+    setFormValues((prev) => ({
+      ...prev,
+      ...sampleData
+    }));
+    addToast("Populated form with realistic sample data", "info");
+  }, [addToast]);
+
   /* ── Handle file select for a row ──────────────────────────── */
   const handleFileSelect = useCallback(async (rowIndex, file) => {
     if (!file) {
-      /* Remove */
       setReqRows((prev) => {
         const next = [...prev];
         next[rowIndex] = { ...next[rowIndex], _file: null, _attachmentId: null };
@@ -506,7 +807,6 @@ export default function App() {
       return;
     }
 
-    /* Upload immediately */
     setUploading((p) => ({ ...p, [rowIndex]: true }));
     try {
       const result = await uploadAttachment(token, file);
@@ -523,7 +823,7 @@ export default function App() {
     }
   }, [token, uploadAttachment, addToast]);
 
-  /* ── Submit Collect Additional Requirements ─────────────────── */
+  /* ── Submit Collect Additional Requirements (Legacy fallback) ── */
   const handleCollectSubmit = useCallback(async () => {
     const missing = reqRows.filter((r) => !r._attachmentId);
     if (missing.length) {
@@ -536,29 +836,66 @@ export default function App() {
     setError("");
 
     try {
-      const res = await submitCollect(token, assignmentId, actionId, reqRows);
+      // Re-use dynamic submit helper by parsing reqRows into RequirementLists in formValues
+      const nextValues = { ...formValues, RequirementLists: reqRows };
+      setFormValues(nextValues);
+      
+      // Execute the submit with reqRows injected
+      const payloadContent = {};
+      const pageInstructions = reqRows.map((row, idx) => {
+        const listIndex = idx + 1;
+        return {
+          content: {},
+          target: ".RequirementLists",
+          listIndex,
+          instruction: "UPDATE"
+        };
+      });
 
-      /* Update uiResources and actionButtons from next assignment view */
-      setUiResources(res.uiResources?.resources || null);
-      setActionButtons(res.uiResources?.actionButtons || null);
+      reqRows.forEach((row, idx) => {
+        if (row._attachmentId) {
+          pageInstructions.push({
+            target:      `.RequirementLists(${idx + 1}).RequiredAttachment`,
+            content:     { ID: row._attachmentId },
+            instruction: "REPLACE",
+          });
+        }
+      });
 
-      /* Next assignment info */
-      const nextAsg = res.data?.caseInfo?.assignments?.[0];
+      const headers = {
+        "Content-Type":  "application/json",
+        Authorization:   `Bearer ${token}`,
+      };
+      if (ifMatch) headers["If-Match"] = ifMatch;
+
+      const res = await fetch(
+        `${API_BASE}/assignments/${encodeId(assignmentId)}/actions/${actionId}?viewType=form`,
+        {
+          method:  "PATCH",
+          headers,
+          body:    JSON.stringify({ content: payloadContent, pageInstructions }),
+        }
+      );
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Submit failed: ${res.status} ${txt}`);
+      }
+
+      const resJson = await res.json();
+      setUiResources(resJson.uiResources?.resources || null);
+      setActionButtons(resJson.uiResources?.actionButtons || null);
+
+      const nextAsg = resJson.data?.caseInfo?.assignments?.[0];
       const nextAct = nextAsg?.actions?.[0];
-      const nextContent = res.data?.caseInfo?.content;
+      const nextContent = resJson.data?.caseInfo?.content || {};
 
-      setNextAssign(res.nextAssignmentInfo || null);
+      setNextAssign(resJson.nextAssignmentInfo || null);
       setAssignmentId(nextAsg?.ID || assignmentId);
       setActionId(nextAct?.ID || "");
+      setStages(resJson.data?.caseInfo?.stages || stages);
 
-      /* Update stages */
-      setStages(res.data?.caseInfo?.stages || stages);
-
-      /* Build review rows */
-      const updatedList = nextContent?.RequirementLists || reqRows;
-      setReviewRows(updatedList.map((r) => ({ ...r })));
-
-      /* Update If-Match for next call */
+      setReviewRows((nextContent?.RequirementLists || reqRows).map((r) => ({ ...r })));
       setIfMatch("");
 
       addToast("Requirements submitted!", "success");
@@ -569,7 +906,7 @@ export default function App() {
       setStep("COLLECT_REQ");
       addToast(e.message, "error");
     }
-  }, [token, assignmentId, actionId, reqRows, submitCollect, stages, addToast]);
+  }, [token, assignmentId, actionId, reqRows, formValues, stages, ifMatch, addToast]);
 
   /* ── Review row change ──────────────────────────────────────── */
   const handleReviewRowChange = useCallback((rowIndex, field, value) => {
@@ -580,12 +917,44 @@ export default function App() {
     });
   }, []);
 
-  /* ── Submit ReviewAttachedDocuments ─────────────────────────── */
+  /* ── Submit ReviewAttachedDocuments (Legacy fallback) ───────── */
   const handleReviewSubmit = useCallback(async () => {
     setReviewSubmitting(true);
     setError("");
     try {
-      await submitReview(token, assignmentId, actionId, reviewRows);
+      const pageInstructions = reviewRows.map((row, idx) => ({
+        content: {
+          Requirement:     row.Requirement || "",
+          Detail:          row.Detail      || "",
+          Level:           row.Level       || "",
+          RequirementType: row.RequirementType || "",
+          Status:          row.Status      || "",
+        },
+        target:      ".RequirementLists",
+        listIndex:   idx + 1,
+        instruction: "UPDATE",
+      }));
+
+      const headers = {
+        "Content-Type":  "application/json",
+        Authorization:   `Bearer ${token}`,
+      };
+      if (ifMatch) headers["If-Match"] = ifMatch;
+
+      const res = await fetch(
+        `${API_BASE}/assignments/${encodeId(assignmentId)}/actions/${actionId}?viewType=form`,
+        {
+          method:  "PATCH",
+          headers,
+          body:    JSON.stringify({ content: {}, pageInstructions }),
+        }
+      );
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Review submit failed: ${res.status} ${txt}`);
+      }
+
       addToast("Documents reviewed and submitted!", "success");
       setStep("SUCCESS");
     } catch (e) {
@@ -594,7 +963,7 @@ export default function App() {
     } finally {
       setReviewSubmitting(false);
     }
-  }, [token, assignmentId, actionId, reviewRows, submitReview, addToast]);
+  }, [token, assignmentId, actionId, reviewRows, ifMatch, addToast]);
 
   /* ── Derived case info ──────────────────────────────────────── */
   const caseId       = caseData?.ID           || DEFAULT_CASE_ID;
@@ -604,6 +973,8 @@ export default function App() {
   const assignee     = caseData?.assignments?.[0]?.assigneeInfo?.name || "—";
   const stageLabel   = caseData?.stageLabel    || "";
   const businessId   = caseData?.businessID    || "";
+
+  const isRequirementListFlow = Array.isArray(formValues.RequirementLists);
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
@@ -659,7 +1030,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── COLLECT ADDITIONAL REQUIREMENTS ─────────── */}
+      {/* ── COLLECT ADDITIONAL REQUIREMENTS / DYNAMIC FORM ─── */}
       {step === "COLLECT_REQ" && (
         <div className="app-body">
           <main className="main-content fade-in">
@@ -686,42 +1057,66 @@ export default function App() {
               </div>
             )}
 
-            {/* Requirements table card */}
+            {/* Main Assignment card */}
             <div className="card fade-in">
               <div className="card-header">
                 <div className="card-title">
                   <div className="card-title-icon"></div>
-                  {caseData?.assignments?.[0]?.name || "Collect Additional Requirements"}
+                  {caseData?.assignments?.[0]?.name || "Collect Claimant Details"}
                 </div>
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  Upload attachments for each requirement
+                  {isRequirementListFlow ? "Upload attachments for each requirement" : "Please fill out all the details below"}
                 </span>
               </div>
 
               <div className="card-body">
-                <CollectReqTable
-                  rows={reqRows}
-                  onFileSelect={handleFileSelect}
-                  uploading={uploading}
-                  uiResources={uiResources}
-                />
+                {isRequirementListFlow ? (
+                  <CollectReqTable
+                    rows={reqRows}
+                    onFileSelect={handleFileSelect}
+                    uploading={uploading}
+                    uiResources={uiResources}
+                  />
+                ) : (
+                  <DynamicForm
+                    viewName={uiResources?.root?.config?.name}
+                    uiResources={uiResources}
+                    formValues={formValues}
+                    onChange={handleFieldChange}
+                    apiData={caseData}
+                    onFileSelect={handleFileSelect}
+                    uploading={uploading}
+                  />
+                )}
               </div>
 
               <div className="action-bar">
-                {actionButtons?.secondary?.map((btn, i) => (
-                  <button key={i} className="btn btn-ghost" onClick={btn.actionID === "save" ? null : init}>
-                    {btn.name}
-                  </button>
-                )) || (
+                {/* Dynamically render action buttons from active view metadata */}
+                {actionButtons?.secondary?.map((btn, i) => {
+                  let onClickHandler = null;
+                  if (btn.actionID === "fillFormWithAI" || btn.jsAction === "fillFormWithAI") {
+                    onClickHandler = handleFillSampleData;
+                  } else if (btn.actionID === "save") {
+                    onClickHandler = null;
+                  } else {
+                    onClickHandler = init;
+                  }
+                  return (
+                    <button key={i} className="btn btn-ghost" onClick={onClickHandler}>
+                      {btn.name}
+                    </button>
+                  );
+                }) || (
                   <button className="btn btn-ghost" onClick={init}>
                     ↺ Refresh
                   </button>
                 )}
+
                 {actionButtons?.main?.map((btn, i) => (
                   <button
                     key={i}
                     className="btn btn-primary"
-                    onClick={handleCollectSubmit}
+                    onClick={isRequirementListFlow ? handleCollectSubmit : handleDynamicSubmit}
                     disabled={Object.values(uploading).some(Boolean)}
                   >
                     {Object.values(uploading).some(Boolean) ? (
@@ -733,13 +1128,13 @@ export default function App() {
                 )) || (
                   <button
                     className="btn btn-primary"
-                    onClick={handleCollectSubmit}
+                    onClick={isRequirementListFlow ? handleCollectSubmit : handleDynamicSubmit}
                     disabled={Object.values(uploading).some(Boolean)}
                   >
                     {Object.values(uploading).some(Boolean) ? (
                       <><div className="btn-spinner" /> Uploading…</>
                     ) : (
-                      "Submit Requirements →"
+                      "Submit"
                     )}
                   </button>
                 )}
@@ -786,7 +1181,7 @@ export default function App() {
               <div className="sidebar-field">
                 <div className="sidebar-label">Task</div>
                 <div className="sidebar-value">
-                  {caseData?.assignments?.[0]?.name || "Collect Additional Requirements"}
+                  {caseData?.assignments?.[0]?.name || "Collect Claimant Details"}
                 </div>
               </div>
               <div className="sidebar-field">
@@ -796,29 +1191,31 @@ export default function App() {
               <div className="sidebar-field">
                 <div className="sidebar-label">Process</div>
                 <div className="sidebar-value">
-                  {caseData?.assignments?.[0]?.processName || "Review Requirements"}
+                  {caseData?.assignments?.[0]?.processName || "Collect Details"}
                 </div>
               </div>
             </div>
 
-            <div className="sidebar-section">
-              <div className="sidebar-section-title"> Progress</div>
-              <div className="sidebar-field">
-                <div className="sidebar-label">Attachments</div>
-                <div className="sidebar-value">
-                  {reqRows.filter((r) => r._attachmentId).length} / {reqRows.length} uploaded
+            {isRequirementListFlow && (
+              <div className="sidebar-section">
+                <div className="sidebar-section-title"> Progress</div>
+                <div className="sidebar-field">
+                  <div className="sidebar-label">Attachments</div>
+                  <div className="sidebar-value">
+                    {reqRows.filter((r) => r._attachmentId).length} / {reqRows.length} uploaded
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, height: 6, background: "var(--border)", borderRadius: 99, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%",
+                    background: "var(--primary)",
+                    borderRadius: 99,
+                    width: `${reqRows.length ? (reqRows.filter((r) => r._attachmentId).length / reqRows.length) * 100 : 0}%`,
+                    transition: "width 0.4s ease",
+                  }} />
                 </div>
               </div>
-              <div style={{ marginTop: 8, height: 6, background: "var(--border)", borderRadius: 99, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%",
-                  background: "var(--primary)",
-                  borderRadius: 99,
-                  width: `${reqRows.length ? (reqRows.filter((r) => r._attachmentId).length / reqRows.length) * 100 : 0}%`,
-                  transition: "width 0.4s ease",
-                }} />
-              </div>
-            </div>
+            )}
           </aside>
         </div>
       )}
@@ -981,12 +1378,14 @@ export default function App() {
               >
                 ↺ Start Over
               </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep("REVIEW_DOCS")}
-              >
-                ← Back to Review
-              </button>
+              {isRequirementListFlow && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setStep("REVIEW_DOCS")}
+                >
+                  ← Back to Review
+                </button>
+              )}
             </div>
           </div>
         </div>
