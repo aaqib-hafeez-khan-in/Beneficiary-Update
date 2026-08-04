@@ -519,7 +519,9 @@ export default function App() {
 
   /* dynamic UI Resources */
   const [uiResources,      setUiResources]      = useState(null);
+  const [rootViewName,     setRootViewName]     = useState("");
   const [actionButtons,    setActionButtons]    = useState(null);
+  const [apiData,          setApiData]          = useState(null);
 
   /* dynamic Form Values */
   const [formValues,      setFormValues]       = useState({});
@@ -639,7 +641,9 @@ export default function App() {
       /* 4. Get assignment view metadata */
       const metaRes = await getAssignmentMeta(tok, asgId, actId);
       setUiResources(metaRes.uiResources?.resources || null);
+      setRootViewName(metaRes.uiResources?.root?.config?.name || "");
       setActionButtons(metaRes.uiResources?.actionButtons || null);
+      setApiData(metaRes.data || null);
 
       const content = metaRes.data?.caseInfo?.content || {};
       setFormValues({ ...content });
@@ -1079,11 +1083,11 @@ export default function App() {
                   />
                 ) : (
                   <DynamicForm
-                    viewName={uiResources?.root?.config?.name}
+                    viewName={rootViewName}
                     uiResources={uiResources}
                     formValues={formValues}
                     onChange={handleFieldChange}
-                    apiData={caseData}
+                    apiData={apiData}
                     onFileSelect={handleFileSelect}
                     uploading={uploading}
                   />
