@@ -1290,7 +1290,7 @@ export default function App() {
           <div className="nav-brand">
             <div className="nav-logo">BU</div>
             <div>
-              <div className="nav-title">Beneficiary Update</div>
+              <div className="nav-title">Respond to requirement</div>
               <div className="nav-subtitle">
                 Intake FNOL · Mphasis GenAI Portal
               </div>
