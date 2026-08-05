@@ -2275,7 +2275,7 @@ export default function App() {
             <div className="success-icon">✓</div>
             <div className="success-title">All Done!</div>
             <div className="success-sub">
-              Requirements collected and documents reviewed successfully.
+              Additional requirements are collected and submitted for review .
               <br />
               The case has been updated in Pega.
             </div>
