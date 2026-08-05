@@ -634,8 +634,8 @@ function AttachCell({ rowIndex, file, attachmentId, isUploading, onSelect }) {
 /* ── Main App ────────────────────────────────────────────────── */
 export default function App() {
   /* Step machine:
-     LOADING → CASE_LIST → COLLECT_REQ → REVIEW_DOCS → SUCCESS */
-  const [step, setStep] = useState("LOADING");
+     START → LOADING → CASE_LIST → COLLECT_REQ → REVIEW_DOCS → SUCCESS */
+  const [step, setStep] = useState("START");
   const [loadingMsg, setLoadingMsg] = useState("Authenticating…");
   const [error, setError] = useState("");
   const [toasts, setToasts] = useState([]);
@@ -852,11 +852,7 @@ export default function App() {
     [token, getCaseDetails, getAssignmentMeta, addToast],
   );
 
-  useEffect(() => {
-    if (authRef.current) return;
-    authRef.current = true;
-    init();
-  }, [init]);
+  /* Remove auto-init useEffect to let user click the Launch button first */
 
   /* ── Dynamic Field Change Handler ──────────────────────────── */
   const handleFieldChange = useCallback((fieldId, value) => {
@@ -1239,30 +1235,468 @@ export default function App() {
   return (
     <div className="shell">
       {/* ── Top Navigation ─────────────────────────── */}
-      <nav className="top-nav">
-        <div className="nav-brand">
-          <div className="nav-logo">BU</div>
-          <div>
-            <div className="nav-title">Beneficiary Update</div>
-            <div className="nav-subtitle">
-              Intake FNOL · Mphasis GenAI Portal
+      {step !== "START" && (
+        <nav className="top-nav">
+          <div className="nav-brand">
+            <div className="nav-logo">BU</div>
+            <div>
+              <div className="nav-title">Beneficiary Update</div>
+              <div className="nav-subtitle">
+                Intake FNOL · Mphasis GenAI Portal
+              </div>
+            </div>
+          </div>
+
+          <div className="nav-pills">
+            {caseStatus && (
+              <div className="nav-pill">
+                <div className="nav-pill-dot" />
+                {caseStatus}
+              </div>
+            )}
+            {caseUrgency !== "" && (
+              <div className="nav-pill"> Urgency {caseUrgency}</div>
+            )}
+            {stageLabel && <div className="nav-pill"> {stageLabel}</div>}
+          </div>
+        </nav>
+      )}
+
+      {step === "START" && (
+        <div
+          style={{
+            backgroundColor: "#f8f9fc",
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Corebridge Header */}
+          <header
+            style={{
+              background: "linear-gradient(90deg, #371861 0%, #1e0936 100%)",
+              color: "#fff",
+              padding: "16px 40px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+              zIndex: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #a855f7, #6b21a8)",
+                  color: "#fff",
+                  fontWeight: "bold",
+                  fontSize: "18px",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                CB
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontWeight: "700",
+                    fontSize: "16px",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Corebridge Financial
+                </div>
+                <div
+                  style={{
+                    fontSize: "10px",
+                    color: "#d8b4fe",
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  Policy Center
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "24px",
+                fontSize: "13px",
+                fontWeight: "600",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  backgroundColor: "#8b5cf6",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  cursor: "pointer",
+                }}
+              >
+                HOME
+              </span>
+              <span style={{ color: "#d8b4fe", cursor: "pointer" }}>
+                SELF-SERVICE
+              </span>
+              <span style={{ color: "#d8b4fe", cursor: "pointer" }}>
+                TRACK REQUEST
+              </span>
+            </div>
+          </header>
+
+          {/* Search Bar Section */}
+          <div
+            style={{
+              background: "linear-gradient(180deg, #1e0936 0%, #3b0764 100%)",
+              padding: "50px 20px 60px",
+              textAlign: "center",
+              color: "#fff",
+            }}
+          >
+            <div
+              style={{
+                maxWidth: "600px",
+                margin: "0 auto 16px",
+                position: "relative",
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Search by policy number, name, or policy type..."
+                style={{
+                  width: "100%",
+                  padding: "14px 100px 14px 20px",
+                  borderRadius: "30px",
+                  border: "none",
+                  outline: "none",
+                  fontSize: "14px",
+                  color: "#333",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                }}
+                disabled
+              />
+              <button
+                style={{
+                  position: "absolute",
+                  right: "6px",
+                  top: "5px",
+                  background: "#6b21a8",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "20px",
+                  padding: "8px 20px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "not-allowed",
+                }}
+              >
+                Search
+              </button>
+            </div>
+            <div style={{ fontSize: "12px", color: "#d8b4fe" }}>
+              Try: <span style={{ fontWeight: "bold" }}>POL-100234</span>,{" "}
+              <span style={{ fontWeight: "bold" }}>Ava Thompson</span>, or{" "}
+              <span style={{ fontWeight: "bold" }}>Health Insurance</span>
+            </div>
+          </div>
+
+          {/* Self-service Content */}
+          <div
+            style={{
+              flexGrow: 1,
+              padding: "50px 40px",
+              maxWidth: "1200px",
+              margin: "0 auto",
+              width: "100%",
+            }}
+          >
+            <h2
+              style={{
+                textAlign: "center",
+                color: "#1e1b4b",
+                fontSize: "24px",
+                fontWeight: "700",
+                marginBottom: "8px",
+              }}
+            >
+              Self-service, on your terms
+            </h2>
+            <p
+              style={{
+                textAlign: "center",
+                color: "#6b7280",
+                fontSize: "14px",
+                marginBottom: "40px",
+              }}
+            >
+              Handle the most common policy requests online, 24/7 — no phone
+              calls required.
+            </p>
+
+            {/* Grid layout matching Corebridge cards */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: "24px",
+                justifyContent: "center",
+                alignItems: "stretch",
+              }}
+            >
+              {/* Card 1: Static */}
+              <div
+                className="card"
+                style={{
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  opacity: 0.8,
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#a855f7",
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    color: "#fff",
+                    marginBottom: "20px",
+                  }}
+                ></div>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#111827",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Address Change
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#6b7280",
+                    flexGrow: 1,
+                    lineHeight: "1.5",
+                    marginBottom: "20px",
+                  }}
+                >
+                  Update the mailing or residential address linked to your
+                  policy.
+                </p>
+                <div
+                  style={{
+                    color: "#a855f7",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  GET STARTED →
+                </div>
+              </div>
+
+              {/* Card 2: Static */}
+              <div
+                className="card"
+                style={{
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  opacity: 0.8,
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#a855f7",
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    color: "#fff",
+                    marginBottom: "20px",
+                  }}
+                ></div>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#111827",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Death Claim
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#6b7280",
+                    flexGrow: 1,
+                    lineHeight: "1.5",
+                    marginBottom: "20px",
+                  }}
+                >
+                  Initiate a death claim for a life insurance policy on behalf
+                  of a beneficiary.
+                </p>
+                <div
+                  style={{
+                    color: "#a855f7",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  GET STARTED →
+                </div>
+              </div>
+
+              {/* Card 3: Active Beneficiary Update */}
+              <div
+                className="card"
+                onClick={init}
+                style={{
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  cursor: "pointer",
+                  border: "2px solid #a855f7",
+                  boxShadow: "0 10px 20px rgba(168, 85, 247, 0.15)",
+                  transform: "translateY(-4px)",
+                  transition: "transform 0.2s, box-shadow 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#a855f7",
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    color: "#fff",
+                    marginBottom: "20px",
+                  }}
+                ></div>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#111827",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Beneficiary Update
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#6b7280",
+                    flexGrow: 1,
+                    lineHeight: "1.5",
+                    marginBottom: "20px",
+                  }}
+                >
+                  Add, remove, or update beneficiaries on your policy.
+                </p>
+                <div
+                  style={{
+                    color: "#a855f7",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  GET STARTED →
+                </div>
+              </div>
+
+              {/* Card 4: Static */}
+              <div
+                className="card"
+                style={{
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  opacity: 0.8,
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#a855f7",
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    color: "#fff",
+                    marginBottom: "20px",
+                  }}
+                ></div>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#111827",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Premium Payment Update
+                </h3>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#6b7280",
+                    flexGrow: 1,
+                    lineHeight: "1.5",
+                    marginBottom: "20px",
+                  }}
+                >
+                  Change your premium payment method, frequency, or bank
+                  details.
+                </p>
+                <div
+                  style={{
+                    color: "#a855f7",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  GET STARTED →
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        <div className="nav-pills">
-          {caseStatus && (
-            <div className="nav-pill">
-              <div className="nav-pill-dot" />
-              {caseStatus}
-            </div>
-          )}
-          {caseUrgency !== "" && (
-            <div className="nav-pill"> Urgency {caseUrgency}</div>
-          )}
-          {stageLabel && <div className="nav-pill"> {stageLabel}</div>}
-        </div>
-      </nav>
+      )}
 
       {/* ── Stages Bar ─────────────────────────────── */}
       {(step === "COLLECT_REQ" ||
