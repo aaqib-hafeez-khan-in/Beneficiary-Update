@@ -789,8 +789,12 @@ export default function App() {
       setToken(tok);
 
       const listRes = await getCaseList(tok);
-      /* Pega data view responses put results at data.pxResults */
-      const results = listRes?.data?.pxResults || listRes?.pxResults || [];
+      /* Pega data view responses put results at data array or data.pxResults */
+      const results =
+        (Array.isArray(listRes?.data) ? listRes.data : null) ||
+        listRes?.data?.pxResults ||
+        listRes?.pxResults ||
+        [];
       setCaseList(results);
       setStep("CASE_LIST");
     } catch (e) {
@@ -1328,12 +1332,13 @@ export default function App() {
                       </thead>
                       <tbody>
                         {caseList.map((c, i) => (
-                          <tr key={c.pxObjClass + i} className="fade-in">
+                          <tr key={c.pzInsKey || i} className="fade-in">
                             <td style={{ fontWeight: "bold" }}>
-                              {c.pxRefObjectKey || c.pxObjRef}
+                              {c.pxRefObjectInsName || c.pxRefObjectKey || c.pxObjRef}
                             </td>
                             <td>
-                              {c.pyLabel ||
+                              {c.pxTaskLabel ||
+                                c.pyLabel ||
                                 c.pyInstructions ||
                                 "Collect Additional Requirements"}
                             </td>
@@ -1352,7 +1357,7 @@ export default function App() {
                                 style={{ padding: "6px 12px", fontSize: 13 }}
                                 onClick={() =>
                                   handleCaseSelect(
-                                    c.pxRefObjectKey || c.pxObjRef,
+                                    c.pxRefObjectKey || c.pxRefObjectInsName || c.pxObjRef,
                                   )
                                 }
                               >
