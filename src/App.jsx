@@ -1869,7 +1869,7 @@ export default function App() {
         <div className="app-body">
           <main className="main-content fade-in">
             {/* Case info bar */}
-            <div className="case-info-bar">
+            {/* <div className="case-info-bar">
               <div className="case-info-left">
                 <div className="case-icon"></div>
                 <div>
@@ -1890,7 +1890,7 @@ export default function App() {
                 </div>
                 <span className="status-badge">{caseStatus}</span>
               </div>
-            </div>
+            </div> */}
 
             {error && (
               <div className="error-box">
@@ -2006,7 +2006,7 @@ export default function App() {
           </main>
 
           {/* ── Sidebar ────────────────────────────── */}
-          <aside className="sidebar">
+          {/* <aside className="sidebar">
             <div className="sidebar-section">
               <div className="sidebar-section-title"> Case Details</div>
               <div className="sidebar-field">
@@ -2096,7 +2096,7 @@ export default function App() {
                 </div>
               </div>
             )}
-          </aside>
+          </aside> */}
         </div>
       )}
 
