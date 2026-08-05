@@ -1749,9 +1749,9 @@ export default function App() {
       )}
 
       {/* ── Stages Bar ─────────────────────────────── */}
-      {(step === "COLLECT_REQ" ||
+      {/* {(step === "COLLECT_REQ" ||
         step === "REVIEW_DOCS" ||
-        step === "SUCCESS") && <StagesBar stages={stages} />}
+        step === "SUCCESS") && <StagesBar stages={stages} />} */}
 
       {/* ── Loading ────────────────────────────────── */}
       {step === "LOADING" && (
