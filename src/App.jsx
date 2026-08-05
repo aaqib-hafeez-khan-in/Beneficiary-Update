@@ -1285,7 +1285,7 @@ export default function App() {
   return (
     <div className="shell">
       {/* ── Top Navigation ─────────────────────────── */}
-      {step !== "START" && (
+      {/* {step !== "START" && (
         <nav className="top-nav">
           <div className="nav-brand">
             <div className="nav-logo">BU</div>
@@ -1310,7 +1310,7 @@ export default function App() {
             {stageLabel && <div className="nav-pill"> {stageLabel}</div>}
           </div>
         </nav>
-      )}
+      )} */}
 
       {step === "START" && (
         <div
