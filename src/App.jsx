@@ -500,7 +500,7 @@ function AttachCell({ rowIndex, file, attachmentId, isUploading, onSelect }) {
 /* ── Main App ────────────────────────────────────────────────── */
 export default function App() {
   /* Step machine:
-     LOADING → COLLECT_REQ → REVIEW_DOCS → SUCCESS */
+     LOADING → CASE_LIST → COLLECT_REQ → REVIEW_DOCS → SUCCESS */
   const [step,            setStep]            = useState("LOADING");
   const [loadingMsg,      setLoadingMsg]       = useState("Authenticating…");
   const [error,           setError]            = useState("");
@@ -508,6 +508,9 @@ export default function App() {
 
   /* auth */
   const [token,           setToken]            = useState("");
+
+  /* case list */
+  const [caseList,        setCaseList]         = useState([]);
 
   /* case */
   const [caseData,        setCaseData]         = useState(null);
@@ -570,7 +573,27 @@ export default function App() {
     return data.access_token;
   }, []);
 
-  /* ── 2. Get Case Details ───────────────────────────────────── */
+  /* ── 2. Fetch Case List (worklist) ─────────────────────────── */
+  const getCaseList = useCallback(async (tok) => {
+    setLoadingMsg("Fetching case list…");
+    const res = await fetch(
+      `${API_BASE}/data_views/D_GetWorkListOnAssignment`,
+      {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${tok}`,
+        },
+        body: JSON.stringify({
+          dataViewParameters: { TaskLabel: "Collect Additional Requirements" },
+        }),
+      }
+    );
+    if (!res.ok) throw new Error("Failed to fetch case list");
+    return res.json();
+  }, []);
+
+  /* ── 3. Get Case Details ───────────────────────────────────── */
   const getCaseDetails = useCallback(async (tok, caseId) => {
     setLoadingMsg("Loading case details…");
     const res = await fetch(
@@ -581,7 +604,7 @@ export default function App() {
     return res.json();
   }, []);
 
-  /* ── 3. Get Assignment View Metadata ───────────────────────── */
+  /* ── 4. Get Assignment View Metadata ───────────────────────── */
   const getAssignmentMeta = useCallback(async (tok, asgId, actId) => {
     setLoadingMsg("Loading assignment view…");
     const url = `${ASSIGN_BASE}/assignments/${encodeId(asgId)}/actions/${actId}?viewType=form`;
@@ -595,7 +618,7 @@ export default function App() {
     return res.json();
   }, []);
 
-  /* ── 4. Upload Attachment ──────────────────────────────────── */
+  /* ── 5. Upload Attachment ──────────────────────────────────── */
   const uploadAttachment = useCallback(async (tok, file) => {
     const formData = new FormData();
     formData.append("content", file, file.name);
@@ -614,22 +637,40 @@ export default function App() {
     return res.json(); // { ID: "..." }
   }, []);
 
-  /* ── Initialise: auth → case → assignment ──────────────────── */
+  /* ── Initialise: auth → fetch worklist → show CASE_LIST ─────── */
   const init = useCallback(async () => {
     setStep("LOADING");
     setError("");
+    setCaseList([]);
+    setCaseData(null);
     try {
-      /* 1. Auth */
       const tok = await authenticate();
       setToken(tok);
 
-      /* 2. Case details */
-      const caseRes = await getCaseDetails(tok, DEFAULT_CASE_ID);
+      const listRes = await getCaseList(tok);
+      /* Pega data view responses put results at data.pxResults */
+      const results = listRes?.data?.pxResults || listRes?.pxResults || [];
+      setCaseList(results);
+      setStep("CASE_LIST");
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+      setStep("ERROR");
+    }
+  }, [authenticate, getCaseList]);
+
+  /* ── Load a selected case and proceed to the form ────────────── */
+  const handleCaseSelect = useCallback(async (pxObjRef) => {
+    setStep("LOADING");
+    setError("");
+    try {
+      /* 1. Case details */
+      const caseRes = await getCaseDetails(token, pxObjRef);
       const ci      = caseRes.data.caseInfo;
       setCaseData(ci);
       setStages(ci.stages || []);
 
-      /* 3. Find first assignment + action */
+      /* 2. Find first assignment + action */
       const asg = ci.assignments?.[0];
       if (!asg) throw new Error("No assignments found on case");
 
@@ -638,8 +679,8 @@ export default function App() {
       setAssignmentId(asgId);
       setActionId(actId);
 
-      /* 4. Get assignment view metadata */
-      const metaRes = await getAssignmentMeta(tok, asgId, actId);
+      /* 3. Get assignment view metadata */
+      const metaRes = await getAssignmentMeta(token, asgId, actId);
       setUiResources(metaRes.uiResources?.resources || null);
       setRootViewName(metaRes.uiResources?.root?.config?.name || "");
       setActionButtons(metaRes.uiResources?.actionButtons || null);
@@ -659,7 +700,7 @@ export default function App() {
       setError(e.message);
       setStep("ERROR");
     }
-  }, [authenticate, getCaseDetails, getAssignmentMeta, addToast]);
+  }, [token, getCaseDetails, getAssignmentMeta, addToast]);
 
   useEffect(() => {
     if (authRef.current) return;
@@ -1043,6 +1084,68 @@ export default function App() {
             <span>✕</span> {error}
           </div>
           <button className="btn btn-primary" onClick={init}>Retry</button>
+        </div>
+      )}
+      {/* ── Case List ──────────────────────────────── */}
+      {step === "CASE_LIST" && (
+        <div className="app-body">
+          <main className="main-content fade-in" style={{ maxWidth: 800, margin: "40px auto" }}>
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">
+                  <div className="card-title-icon"></div>
+                  Pending Intake Cases
+                </div>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  Select a case to collect and review requirements
+                </span>
+              </div>
+              <div className="card-body" style={{ padding: 0 }}>
+                {caseList.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "var(--text-subtle)" }}>
+                    No pending cases found for "Collect Additional Requirements".
+                  </div>
+                ) : (
+                  <div className="req-table-wrapper">
+                    <table className="req-table">
+                      <thead>
+                        <tr>
+                          <th>Case ID</th>
+                          <th>Label</th>
+                          <th>Status</th>
+                          <th>Urgency</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {caseList.map((c, i) => (
+                          <tr key={c.pxObjClass + i} className="fade-in">
+                            <td style={{ fontWeight: "bold" }}>{c.pxRefObjectKey || c.pxObjRef}</td>
+                            <td>{c.pyLabel || c.pyInstructions || "Collect Additional Requirements"}</td>
+                            <td>
+                              <span className="status-pill igo" style={{ textTransform: "capitalize" }}>
+                                {c.pyAssignmentStatus || "New"}
+                              </span>
+                            </td>
+                            <td>{c.pxUrgencyAssign || "0"}</td>
+                            <td>
+                              <button
+                                className="btn btn-primary"
+                                style={{ padding: "6px 12px", fontSize: 13 }}
+                                onClick={() => handleCaseSelect(c.pxRefObjectKey || c.pxObjRef)}
+                              >
+                                Open Case
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </main>
         </div>
       )}
 
