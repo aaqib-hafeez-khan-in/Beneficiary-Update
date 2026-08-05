@@ -1334,7 +1334,9 @@ export default function App() {
                         {caseList.map((c, i) => (
                           <tr key={c.pzInsKey || i} className="fade-in">
                             <td style={{ fontWeight: "bold" }}>
-                              {c.pxRefObjectInsName || c.pxRefObjectKey || c.pxObjRef}
+                              {c.pxRefObjectInsName ||
+                                c.pxRefObjectKey ||
+                                c.pxObjRef}
                             </td>
                             <td>
                               {c.pxTaskLabel ||
@@ -1357,7 +1359,9 @@ export default function App() {
                                 style={{ padding: "6px 12px", fontSize: 13 }}
                                 onClick={() =>
                                   handleCaseSelect(
-                                    c.pxRefObjectKey || c.pxRefObjectInsName || c.pxObjRef,
+                                    c.pxRefObjectKey ||
+                                      c.pxRefObjectInsName ||
+                                      c.pxObjRef,
                                   )
                                 }
                               >
