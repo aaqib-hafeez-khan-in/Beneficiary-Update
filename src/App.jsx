@@ -1658,7 +1658,7 @@ export default function App() {
                     marginBottom: "8px",
                   }}
                 >
-                  Beneficiary Update
+                  Respond to requirement
                 </h3>
                 <p
                   style={{
@@ -1669,7 +1669,7 @@ export default function App() {
                     marginBottom: "20px",
                   }}
                 >
-                  Add, remove, or update beneficiaries on your policy.
+                  Add, replace, or update requested claim supporting documents required for claim processing.
                 </p>
                 <div
                   style={{
