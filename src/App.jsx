@@ -1237,6 +1237,17 @@ export default function App() {
         }
       });
 
+      reqRows.forEach((row, idx) => {
+        if (row.Comments) {
+          pageInstructions.push({
+            content: { Comments: row.Comments },
+            target: ".RequirementLists",
+            listIndex: idx + 1,
+            instruction: "UPDATE",
+          });
+        }
+      });
+
       const headers = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
