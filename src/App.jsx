@@ -1916,7 +1916,7 @@ export default function App() {
                             </td>
                             <td>
                               <span
-                                className="status-pill igo"
+                                className="status-pill nigo"
                                 style={{ textTransform: "capitalize" }}
                               >
                                 {c.pyAssignmentStatus || "New"}
