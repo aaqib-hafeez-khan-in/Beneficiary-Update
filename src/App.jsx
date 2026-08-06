@@ -27,6 +27,13 @@ const statusIcon = (s = "") => {
   return "•";
 };
 
+const normalizeReqRow = (r) => ({
+  ...r,
+  Detail: r.Detail || r.RequirementDesc || r.RequirementDescription || "",
+  Level: r.Level || r.RequirementLevel || "",
+  RequirementType: r.RequirementType || r.Type || "",
+});
+
 /* Helper to safely retrieve field config from uiResources */
 const getFieldMeta = (uiResources, fieldId) => {
   const fields = uiResources?.fields || {};
@@ -837,9 +844,9 @@ export default function App() {
 
         const reqList = content?.RequirementLists || [];
         setReqRows(
-          reqList.map((r) => ({ ...r, _file: null, _attachmentId: null })),
+          reqList.map((r) => ({ ...normalizeReqRow(r), _file: null, _attachmentId: null })),
         );
-        setReviewRows(reqList.map((r) => ({ ...r })));
+        setReviewRows(reqList.map((r) => normalizeReqRow(r)));
 
         setStep("COLLECT_REQ");
         addToast("Case loaded successfully", "success");
@@ -878,8 +885,12 @@ export default function App() {
               content: {
                 Requirement: row.Requirement || "",
                 Detail: row.Detail || "",
+                RequirementDesc: row.Detail || "",
+                RequirementDescription: row.Detail || "",
                 Level: row.Level || "",
+                RequirementLevel: row.Level || "",
                 RequirementType: row.RequirementType || "",
+                Type: row.RequirementType || "",
                 Status: row.Status || "",
               },
               target: `.${key}`,
@@ -949,12 +960,14 @@ export default function App() {
         if (Array.isArray(nextContent.RequirementLists)) {
           setReqRows(
             nextContent.RequirementLists.map((r) => ({
-              ...r,
+              ...normalizeReqRow(r),
               _file: null,
               _attachmentId: null,
             })),
           );
-          setReviewRows(nextContent.RequirementLists.map((r) => ({ ...r })));
+          setReviewRows(
+            nextContent.RequirementLists.map((r) => normalizeReqRow(r)),
+          );
           if (
             nextAsg.processID === "ReviewRequirements_Flow" ||
             nextActId === "ReviewAttachedDocuments"
@@ -1151,7 +1164,7 @@ export default function App() {
       }
 
       setReviewRows(
-        (nextContent?.RequirementLists || reqRows).map((r) => ({ ...r })),
+        (nextContent?.RequirementLists || reqRows).map((r) => normalizeReqRow(r)),
       );
       setIfMatch("");
 
@@ -1168,8 +1181,12 @@ export default function App() {
             content: {
               Requirement: row.Requirement || "",
               Detail: row.Detail || "",
+              RequirementDesc: row.Detail || "",
+              RequirementDescription: row.Detail || "",
               Level: row.Level || "",
+              RequirementLevel: row.Level || "",
               RequirementType: row.RequirementType || "",
+              Type: row.RequirementType || "",
               Status: row.Status || "",
             },
             target: ".RequirementLists",
@@ -1231,8 +1248,12 @@ export default function App() {
         content: {
           Requirement: row.Requirement || "",
           Detail: row.Detail || "",
+          RequirementDesc: row.Detail || "",
+          RequirementDescription: row.Detail || "",
           Level: row.Level || "",
+          RequirementLevel: row.Level || "",
           RequirementType: row.RequirementType || "",
+          Type: row.RequirementType || "",
           Status: row.Status || "",
         },
         target: ".RequirementLists",
@@ -1936,7 +1957,7 @@ export default function App() {
 
               <div className="action-bar">
                 {/* Dynamically render action buttons from active view metadata */}
-                {actionButtons?.secondary?.map((btn, i) => {
+                {/* {actionButtons?.secondary?.map((btn, i) => {
                   let onClickHandler = null;
                   if (
                     btn.actionID === "fillFormWithAI" ||
@@ -1961,7 +1982,7 @@ export default function App() {
                   <button className="btn btn-ghost" onClick={init}>
                     ↺ Refresh
                   </button>
-                )}
+                )} */}
 
                 {actionButtons?.main?.map((btn, i) => (
                   <button
