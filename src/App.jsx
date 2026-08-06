@@ -486,7 +486,13 @@ function StagesBar({ stages = [] }) {
 }
 
 /* ── Requirements Table (CollectAdditionalRequirements view) ─── */
-function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
+function CollectReqTable({
+  rows,
+  onFileSelect,
+  uploading,
+  uiResources,
+  onRowChange,
+}) {
   const cols = getColumnsFromMeta(uiResources, "CollectAdditionalRequirements");
 
   if (!cols.length) {
@@ -541,6 +547,45 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
                     </td>
                   );
                 }
+
+                // If the field is editable (not readOnly)
+                if (!col.readOnly) {
+                  if (col.type === "TextArea") {
+                    return (
+                      <td key={col.id}>
+                        <textarea
+                          value={row[col.id] || ""}
+                          onChange={(e) =>
+                            onRowChange &&
+                            onRowChange(i, col.id, e.target.value)
+                          }
+                          placeholder={`Enter ${col.label}...`}
+                          style={{
+                            width: "100%",
+                            minWidth: "150px",
+                            resize: "vertical",
+                          }}
+                          rows={2}
+                        />
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={col.id}>
+                      <input
+                        type="text"
+                        value={row[col.id] || ""}
+                        onChange={(e) =>
+                          onRowChange && onRowChange(i, col.id, e.target.value)
+                        }
+                        placeholder={`Enter ${col.label}...`}
+                        style={{ width: "100%", minWidth: "120px" }}
+                      />
+                    </td>
+                  );
+                }
+
+                // Default read-only rendering
                 return (
                   <td
                     key={col.id}
@@ -614,12 +659,18 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
                   );
                 }
                 if (col.type === "Dropdown" || col.id === "Status") {
-                  const opts = getFieldOptions(uiResources, col.id, [
-                    "IGO",
-                    "NIGO",
-                    "Ordered",
-                    "Re-Ordered",
-                  ]);
+                  const meta = getFieldMeta(uiResources, col.id);
+                  const records = meta?.datasource?.records;
+                  const opts =
+                    records && Array.isArray(records)
+                      ? records.map((r) => ({
+                          key: r.key,
+                          value: r.value || r.key,
+                        }))
+                      : [
+                          { key: "IGO", value: "Pending" },
+                          { key: "NIGO", value: "Completed" },
+                        ];
                   return (
                     <td key={col.id}>
                       <select
@@ -629,8 +680,8 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
                       >
                         <option value="">Select…</option>
                         {opts.map((o) => (
-                          <option key={o} value={o}>
-                            {o}
+                          <option key={o.key} value={o.key}>
+                            {o.value}
                           </option>
                         ))}
                       </select>
@@ -1296,6 +1347,15 @@ export default function App() {
     getAssignmentMeta,
     addToast,
   ]);
+
+  /* ── Collect row change (comments/etc) ──────────────────────── */
+  const handleCollectRowChange = useCallback((rowIndex, field, value) => {
+    setReqRows((prev) => {
+      const next = [...prev];
+      next[rowIndex] = { ...next[rowIndex], [field]: value };
+      return next;
+    });
+  }, []);
 
   /* ── Review row change ──────────────────────────────────────── */
   const handleReviewRowChange = useCallback((rowIndex, field, value) => {
@@ -2006,6 +2066,7 @@ export default function App() {
                     onFileSelect={handleFileSelect}
                     uploading={uploading}
                     uiResources={uiResources}
+                    onRowChange={handleCollectRowChange}
                   />
                 ) : (
                   <DynamicForm
