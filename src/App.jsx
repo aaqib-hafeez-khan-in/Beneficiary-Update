@@ -36,7 +36,7 @@ const resolveStatusLabel = (key, uiResources) => {
 
 const handleApiResponse = async (res, defaultErrorMsg) => {
   if (res.ok) return res.json();
-  
+
   let errorMsg = defaultErrorMsg;
   try {
     const errorJson = await res.json();
@@ -54,7 +54,7 @@ const handleApiResponse = async (res, defaultErrorMsg) => {
       if (text) errorMsg = text;
     } catch (_) {}
   }
-  
+
   throw new Error(errorMsg);
 };
 
@@ -62,14 +62,17 @@ const normalizeReqRow = (r) => ({
   ...r,
 });
 
-const getColumnsFromMeta = (uiResources, viewName = "CollectAdditionalRequirements") => {
+const getColumnsFromMeta = (
+  uiResources,
+  viewName = "CollectAdditionalRequirements",
+) => {
   if (!uiResources?.views?.[viewName]) return [];
   const viewDef = uiResources.views[viewName][0];
   const embeddedData = viewDef?.children?.[0]?.children?.[0];
   const columnsMeta = embeddedData?.config?.columns || [];
-  
+
   const cols = [];
-  
+
   columnsMeta.forEach((col) => {
     const config = col.config || {};
     if (col.type === "reference") {
@@ -77,16 +80,23 @@ const getColumnsFromMeta = (uiResources, viewName = "CollectAdditionalRequiremen
       const refViews = uiResources.views?.[refViewName];
       if (refViews && refViews.length > 0) {
         const refView = refViews[0];
-        const fieldsRegion = refView.children?.find(c => c.name === "Fields");
+        const fieldsRegion = refView.children?.find((c) => c.name === "Fields");
         const children = fieldsRegion?.children || [];
         children.forEach((child) => {
           if (child.config?.value) {
-            const prop = child.config.value.replace(/^@(P|ATTACHMENT|ASSOCIATED)\s+\./, "");
+            const prop = child.config.value.replace(
+              /^@(P|ATTACHMENT|ASSOCIATED)\s+\./,
+              "",
+            );
             cols.push({
               id: prop,
-              label: getFieldLabel(uiResources, prop, child.config.label?.replace(/^@FL\s+\./, "")),
+              label: getFieldLabel(
+                uiResources,
+                prop,
+                child.config.label?.replace(/^@FL\s+\./, ""),
+              ),
               type: child.type,
-              readOnly: child.config.readOnly
+              readOnly: child.config.readOnly,
             });
           }
         });
@@ -95,13 +105,17 @@ const getColumnsFromMeta = (uiResources, viewName = "CollectAdditionalRequiremen
       const prop = config.value.replace(/^@(P|ATTACHMENT|ASSOCIATED)\s+\./, "");
       cols.push({
         id: prop,
-        label: getFieldLabel(uiResources, prop, config.label?.replace(/^@FL\s+\./, "")),
+        label: getFieldLabel(
+          uiResources,
+          prop,
+          config.label?.replace(/^@FL\s+\./, ""),
+        ),
         type: col.type,
-        readOnly: config.readOnly
+        readOnly: config.readOnly,
       });
     }
   });
-  
+
   return cols;
 };
 
@@ -480,7 +494,7 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
       { id: "Requirement", label: "Requirement" },
       { id: "RequirementDescription", label: "Requirement Description" },
       { id: "Status", label: "Status" },
-      { id: "RequiredAttachment", label: "Attachment", type: "Attachment" }
+      { id: "RequiredAttachment", label: "Attachment", type: "Attachment" },
     );
   }
 
@@ -500,7 +514,10 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
             <tr key={i} className="fade-in">
               <td>{i + 1}</td>
               {cols.map((col) => {
-                if (col.type === "Attachment" || col.id === "RequiredAttachment") {
+                if (
+                  col.type === "Attachment" ||
+                  col.id === "RequiredAttachment"
+                ) {
                   return (
                     <td key={col.id}>
                       <AttachCell
@@ -516,14 +533,19 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
                 if (col.id === "Status") {
                   return (
                     <td key={col.id}>
-                      <span className={`status-pill ${statusClass(row.Status)}`}>
+                      <span
+                        className={`status-pill ${statusClass(row.Status)}`}
+                      >
                         {resolveStatusLabel(row.Status, uiResources)}
                       </span>
                     </td>
                   );
                 }
                 return (
-                  <td key={col.id} style={col.id === "Requirement" ? { fontWeight: 500 } : {}}>
+                  <td
+                    key={col.id}
+                    style={col.id === "Requirement" ? { fontWeight: 500 } : {}}
+                  >
                     {row[col.id] || "—"}
                   </td>
                 );
@@ -545,7 +567,7 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
       { id: "Requirement", label: "Requirement" },
       { id: "RequirementDescription", label: "Requirement Description" },
       { id: "Status", label: "Status" },
-      { id: "RequiredAttachment", label: "Attachment", type: "Attachment" }
+      { id: "RequiredAttachment", label: "Attachment", type: "Attachment" },
     );
   }
 
@@ -565,7 +587,10 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
             <tr key={i} className="fade-in">
               <td>{i + 1}</td>
               {cols.map((col) => {
-                if (col.type === "Attachment" || col.id === "RequiredAttachment") {
+                if (
+                  col.type === "Attachment" ||
+                  col.id === "RequiredAttachment"
+                ) {
                   return (
                     <td key={col.id}>
                       {row.RequiredAttachment?.pyAttachName ? (
@@ -579,7 +604,9 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
                           </span>
                         </div>
                       ) : (
-                        <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>
+                        <span
+                          style={{ color: "var(--text-subtle)", fontSize: 12 }}
+                        >
                           No attachment
                         </span>
                       )}
@@ -612,7 +639,12 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
                 }
                 if (col.readOnly) {
                   return (
-                    <td key={col.id} style={col.id === "Requirement" ? { fontWeight: 500 } : {}}>
+                    <td
+                      key={col.id}
+                      style={
+                        col.id === "Requirement" ? { fontWeight: 500 } : {}
+                      }
+                    >
                       {row[col.id] || "—"}
                     </td>
                   );
@@ -885,7 +917,11 @@ export default function App() {
 
         const reqList = content?.RequirementLists || [];
         setReqRows(
-          reqList.map((r) => ({ ...normalizeReqRow(r), _file: null, _attachmentId: null })),
+          reqList.map((r) => ({
+            ...normalizeReqRow(r),
+            _file: null,
+            _attachmentId: null,
+          })),
         );
         setReviewRows(reqList.map((r) => normalizeReqRow(r)));
 
@@ -1200,7 +1236,9 @@ export default function App() {
       }
 
       setReviewRows(
-        (nextContent?.RequirementLists || reqRows).map((r) => normalizeReqRow(r)),
+        (nextContent?.RequirementLists || reqRows).map((r) =>
+          normalizeReqRow(r),
+        ),
       );
       setIfMatch("");
 
@@ -1716,7 +1754,8 @@ export default function App() {
                     marginBottom: "20px",
                   }}
                 >
-                  Add, replace, or update requested claim supporting documents required for claim processing.
+                  Add, replace, or update requested claim supporting documents
+                  required for claim processing.
                 </p>
                 <div
                   style={{
