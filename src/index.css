@@ -13,8 +13,8 @@
   --warning-light: #fffbeb;
   --danger: #dc2626;
   --danger-light: #fef2f2;
-  --nigo: #ef4444;
-  --igo: #10b981;
+  --nigo: #10b981;  
+  --igo: #ef4444;
 
   --bg: #f1f5f9;
   --surface: #ffffff;
@@ -437,11 +437,11 @@ body {
 }
 
 .status-pill.nigo {
-  background: #fef2f2;
+    background: #ecfdf5;
   color: var(--nigo);
 }
 .status-pill.igo {
-  background: #ecfdf5;
+    background: #fef2f2;
   color: var(--igo);
 }
 .status-pill.ordered {

@@ -19,14 +19,14 @@ const statusClass = (s = "") => {
   return "ordered";
 };
 
-const statusIcon = (s = "") => {
-  if (s === "NIGO") return "⚠";
-  if (s === "IGO") return "✓";
-  if (s === "Ordered") return "⏳";
-  if (s === "Re-Ordered") return "🔄";
-  return "•";
-};
-
+const statusIcon = () => null;
+// const statusIcon = (s = "") => {
+//   if (s === "NIGO") return "⚠";
+//   if (s === "IGO") return "✓";
+//   if (s === "Ordered") return "⏳";
+//   if (s === "Re-Ordered") return "🔄";
+//   return "•";
+// };
 const resolveStatusLabel = (key, uiResources) => {
   const records = uiResources?.fields?.Status?.[0]?.datasource?.records;
   if (!records || !key) return key || "—";
@@ -65,7 +65,7 @@ const normalizeReqRow = (r) => ({
 const getColumnsFromMeta = (uiResources, viewName = "CollectAdditionalRequirements") => {
   if (!uiResources?.views?.[viewName]) return [];
   const viewDef = uiResources.views[viewName][0];
-  const embeddedData = viewDef?.children?.[0]?.children?.[0]; // The EmbeddedDataMulti element
+  const embeddedData = viewDef?.children?.[0]?.children?.[0];
   const columnsMeta = embeddedData?.config?.columns || [];
   
   const cols = [];
@@ -517,7 +517,6 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
                   return (
                     <td key={col.id}>
                       <span className={`status-pill ${statusClass(row.Status)}`}>
-                        {statusIcon(row.Status)}{" "}
                         {resolveStatusLabel(row.Status, uiResources)}
                       </span>
                     </td>
@@ -2295,7 +2294,6 @@ export default function App() {
                   </div>
                   <div className="sidebar-value">
                     <span className={`status-pill ${statusClass(row.Status)}`}>
-                      {statusIcon(row.Status)}{" "}
                       {resolveStatusLabel(row.Status, uiResources)}
                     </span>
                   </div>
