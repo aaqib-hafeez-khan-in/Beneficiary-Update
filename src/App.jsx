@@ -27,6 +27,13 @@ const statusIcon = (s = "") => {
   return "•";
 };
 
+const resolveStatusLabel = (key, uiResources) => {
+  const records = uiResources?.fields?.Status?.[0]?.datasource?.records;
+  if (!records || !key) return key || "—";
+  const match = records.find((r) => r.key === key);
+  return match ? match.value : key;
+};
+
 const handleApiResponse = async (res, defaultErrorMsg) => {
   if (res.ok) return res.json();
   
@@ -510,7 +517,8 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
                   return (
                     <td key={col.id}>
                       <span className={`status-pill ${statusClass(row.Status)}`}>
-                        {statusIcon(row.Status)} {row.Status || "—"}
+                        {statusIcon(row.Status)}{" "}
+                        {resolveStatusLabel(row.Status, uiResources)}
                       </span>
                     </td>
                   );
@@ -2287,7 +2295,8 @@ export default function App() {
                   </div>
                   <div className="sidebar-value">
                     <span className={`status-pill ${statusClass(row.Status)}`}>
-                      {statusIcon(row.Status)} {row.Status || "—"}
+                      {statusIcon(row.Status)}{" "}
+                      {resolveStatusLabel(row.Status, uiResources)}
                     </span>
                   </div>
                   {row.RequiredAttachment?.pyAttachName && (
