@@ -27,12 +27,76 @@ const statusIcon = (s = "") => {
   return "•";
 };
 
+const handleApiResponse = async (res, defaultErrorMsg) => {
+  if (res.ok) return res.json();
+  
+  let errorMsg = defaultErrorMsg;
+  try {
+    const errorJson = await res.json();
+    if (errorJson?.localizedValue) {
+      errorMsg = errorJson.localizedValue;
+      if (errorJson.errorDetails?.[0]?.localizedValue) {
+        errorMsg += `: ${errorJson.errorDetails[0].localizedValue}`;
+      }
+    } else if (errorJson?.message) {
+      errorMsg = errorJson.message;
+    }
+  } catch (_) {
+    try {
+      const text = await res.text();
+      if (text) errorMsg = text;
+    } catch (_) {}
+  }
+  
+  throw new Error(errorMsg);
+};
+
 const normalizeReqRow = (r) => ({
   ...r,
-  Detail: r.Detail || r.RequirementDesc || r.RequirementDescription || "",
-  Level: r.Level || r.RequirementLevel || "",
-  RequirementType: r.RequirementType || r.Type || "",
 });
+
+const getColumnsFromMeta = (uiResources, viewName = "CollectAdditionalRequirements") => {
+  if (!uiResources?.views?.[viewName]) return [];
+  const viewDef = uiResources.views[viewName][0];
+  const embeddedData = viewDef?.children?.[0]?.children?.[0]; // The EmbeddedDataMulti element
+  const columnsMeta = embeddedData?.config?.columns || [];
+  
+  const cols = [];
+  
+  columnsMeta.forEach((col) => {
+    const config = col.config || {};
+    if (col.type === "reference") {
+      const refViewName = config.name;
+      const refViews = uiResources.views?.[refViewName];
+      if (refViews && refViews.length > 0) {
+        const refView = refViews[0];
+        const fieldsRegion = refView.children?.find(c => c.name === "Fields");
+        const children = fieldsRegion?.children || [];
+        children.forEach((child) => {
+          if (child.config?.value) {
+            const prop = child.config.value.replace(/^@(P|ATTACHMENT|ASSOCIATED)\s+\./, "");
+            cols.push({
+              id: prop,
+              label: getFieldLabel(uiResources, prop, child.config.label?.replace(/^@FL\s+\./, "")),
+              type: child.type,
+              readOnly: child.config.readOnly
+            });
+          }
+        });
+      }
+    } else if (config.value) {
+      const prop = config.value.replace(/^@(P|ATTACHMENT|ASSOCIATED)\s+\./, "");
+      cols.push({
+        id: prop,
+        label: getFieldLabel(uiResources, prop, config.label?.replace(/^@FL\s+\./, "")),
+        type: col.type,
+        readOnly: config.readOnly
+      });
+    }
+  });
+  
+  return cols;
+};
 
 /* Helper to safely retrieve field config from uiResources */
 const getFieldMeta = (uiResources, fieldId) => {
@@ -402,20 +466,16 @@ function StagesBar({ stages = [] }) {
 
 /* ── Requirements Table (CollectAdditionalRequirements view) ─── */
 function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
-  const requirementLabel = getFieldLabel(
-    uiResources,
-    "Requirement",
-    "Requirement",
-  );
-  const detailLabel = getFieldLabel(uiResources, "Detail", "Detail");
-  const levelLabel = getFieldLabel(uiResources, "Level", "Level");
-  const typeLabel = getFieldLabel(uiResources, "RequirementType", "Type");
-  const statusLabel = getFieldLabel(uiResources, "Status", "Status");
-  const attachmentLabel = getFieldLabel(
-    uiResources,
-    "RequiredAttachment",
-    "Attachment",
-  );
+  const cols = getColumnsFromMeta(uiResources, "CollectAdditionalRequirements");
+
+  if (!cols.length) {
+    cols.push(
+      { id: "Requirement", label: "Requirement" },
+      { id: "RequirementDescription", label: "Requirement Description" },
+      { id: "Status", label: "Status" },
+      { id: "RequiredAttachment", label: "Attachment", type: "Attachment" }
+    );
+  }
 
   return (
     <div className="req-table-wrapper">
@@ -423,36 +483,44 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
         <thead>
           <tr>
             <th>#</th>
-            <th>{requirementLabel}</th>
-            <th>{detailLabel}</th>
-            <th>{levelLabel}</th>
-            <th>{typeLabel}</th>
-            <th>{statusLabel}</th>
-            <th>{attachmentLabel}</th>
+            {cols.map((col) => (
+              <th key={col.id}>{col.label}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} className="fade-in">
               <td>{i + 1}</td>
-              <td style={{ fontWeight: 500 }}>{row.Requirement || "—"}</td>
-              <td>{row.Detail || "—"}</td>
-              <td>{row.Level || "—"}</td>
-              <td>{row.RequirementType || "—"}</td>
-              <td>
-                <span className={`status-pill ${statusClass(row.Status)}`}>
-                  {statusIcon(row.Status)} {row.Status || "—"}
-                </span>
-              </td>
-              <td>
-                <AttachCell
-                  rowIndex={i}
-                  file={row._file}
-                  attachmentId={row._attachmentId}
-                  isUploading={uploading[i]}
-                  onSelect={onFileSelect}
-                />
-              </td>
+              {cols.map((col) => {
+                if (col.type === "Attachment" || col.id === "RequiredAttachment") {
+                  return (
+                    <td key={col.id}>
+                      <AttachCell
+                        rowIndex={i}
+                        file={row._file}
+                        attachmentId={row._attachmentId}
+                        isUploading={uploading[i]}
+                        onSelect={onFileSelect}
+                      />
+                    </td>
+                  );
+                }
+                if (col.id === "Status") {
+                  return (
+                    <td key={col.id}>
+                      <span className={`status-pill ${statusClass(row.Status)}`}>
+                        {statusIcon(row.Status)} {row.Status || "—"}
+                      </span>
+                    </td>
+                  );
+                }
+                return (
+                  <td key={col.id} style={col.id === "Requirement" ? { fontWeight: 500 } : {}}>
+                    {row[col.id] || "—"}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -463,35 +531,16 @@ function CollectReqTable({ rows, onFileSelect, uploading, uiResources }) {
 
 /* ── Review Attached Documents Table (read-only + editable dropdowns) */
 function ReviewReqTable({ rows, onRowChange, uiResources }) {
-  const statusOptions = getFieldOptions(uiResources, "Status", [
-    "IGO",
-    "NIGO",
-    "Ordered",
-    "Re-Ordered",
-  ]);
-  const typeOptions = getFieldOptions(uiResources, "RequirementType", [
-    "External",
-    "Internal",
-  ]);
-  const levelOptions = getFieldOptions(uiResources, "Level", [
-    "Beneficiary",
-    "Claim",
-  ]);
+  const cols = getColumnsFromMeta(uiResources, "CollectAdditionalRequirements");
 
-  const requirementLabel = getFieldLabel(
-    uiResources,
-    "Requirement",
-    "Requirement",
-  );
-  const detailLabel = getFieldLabel(uiResources, "Detail", "Detail");
-  const levelLabel = getFieldLabel(uiResources, "Level", "Level");
-  const typeLabel = getFieldLabel(uiResources, "RequirementType", "Type");
-  const statusLabel = getFieldLabel(uiResources, "Status", "Status");
-  const attachmentLabel = getFieldLabel(
-    uiResources,
-    "RequiredAttachment",
-    "Attachment",
-  );
+  if (!cols.length) {
+    cols.push(
+      { id: "Requirement", label: "Requirement" },
+      { id: "RequirementDescription", label: "Requirement Description" },
+      { id: "Status", label: "Status" },
+      { id: "RequiredAttachment", label: "Attachment", type: "Attachment" }
+    );
+  }
 
   return (
     <div className="req-table-wrapper">
@@ -499,94 +548,79 @@ function ReviewReqTable({ rows, onRowChange, uiResources }) {
         <thead>
           <tr>
             <th>#</th>
-            <th>{requirementLabel}</th>
-            <th>{detailLabel}</th>
-            <th>{levelLabel}</th>
-            <th>{typeLabel}</th>
-            <th>{statusLabel}</th>
-            <th>{attachmentLabel}</th>
+            {cols.map((col) => (
+              <th key={col.id}>{col.label}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} className="fade-in">
               <td>{i + 1}</td>
-              <td>
-                <input
-                  type="text"
-                  value={row.Requirement || ""}
-                  onChange={(e) =>
-                    onRowChange(i, "Requirement", e.target.value)
-                  }
-                  style={{ minWidth: 130 }}
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  value={row.Detail || ""}
-                  onChange={(e) => onRowChange(i, "Detail", e.target.value)}
-                  style={{ minWidth: 120 }}
-                />
-              </td>
-              <td>
-                <select
-                  value={row.Level || ""}
-                  onChange={(e) => onRowChange(i, "Level", e.target.value)}
-                >
-                  <option value="">Select…</option>
-                  {levelOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select
-                  value={row.RequirementType || ""}
-                  onChange={(e) =>
-                    onRowChange(i, "RequirementType", e.target.value)
-                  }
-                >
-                  <option value="">Select…</option>
-                  {typeOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select
-                  value={row.Status || ""}
-                  onChange={(e) => onRowChange(i, "Status", e.target.value)}
-                >
-                  <option value="">Select…</option>
-                  {statusOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                {row.RequiredAttachment?.pyAttachName ? (
-                  <div className="file-chip">
-                    <span></span>
-                    <span
-                      className="file-chip-name"
-                      title={row.RequiredAttachment.pyAttachName}
-                    >
-                      {row.RequiredAttachment.pyAttachName}
-                    </span>
-                  </div>
-                ) : (
-                  <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>
-                    No attachment
-                  </span>
-                )}
-              </td>
+              {cols.map((col) => {
+                if (col.type === "Attachment" || col.id === "RequiredAttachment") {
+                  return (
+                    <td key={col.id}>
+                      {row.RequiredAttachment?.pyAttachName ? (
+                        <div className="file-chip">
+                          <span></span>
+                          <span
+                            className="file-chip-name"
+                            title={row.RequiredAttachment.pyAttachName}
+                          >
+                            {row.RequiredAttachment.pyAttachName}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>
+                          No attachment
+                        </span>
+                      )}
+                    </td>
+                  );
+                }
+                if (col.type === "Dropdown" || col.id === "Status") {
+                  const opts = getFieldOptions(uiResources, col.id, [
+                    "IGO",
+                    "NIGO",
+                    "Ordered",
+                    "Re-Ordered",
+                  ]);
+                  return (
+                    <td key={col.id}>
+                      <select
+                        value={row[col.id] || ""}
+                        onChange={(e) => onRowChange(i, col.id, e.target.value)}
+                        disabled={col.readOnly}
+                      >
+                        <option value="">Select…</option>
+                        {opts.map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  );
+                }
+                if (col.readOnly) {
+                  return (
+                    <td key={col.id} style={col.id === "Requirement" ? { fontWeight: 500 } : {}}>
+                      {row[col.id] || "—"}
+                    </td>
+                  );
+                }
+                return (
+                  <td key={col.id}>
+                    <input
+                      type="text"
+                      value={row[col.id] || ""}
+                      onChange={(e) => onRowChange(i, col.id, e.target.value)}
+                      style={{ minWidth: 120 }}
+                    />
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -733,8 +767,7 @@ export default function App() {
         }),
       },
     );
-    if (!res.ok) throw new Error("Failed to fetch case list");
-    return res.json();
+    return handleApiResponse(res, "Failed to fetch case list");
   }, []);
 
   /* ── 3. Get Case Details ───────────────────────────────────── */
@@ -744,8 +777,7 @@ export default function App() {
       `${API_BASE}/cases/${encodeId(caseId)}?viewType=page`,
       { headers: { Authorization: `Bearer ${tok}` } },
     );
-    if (!res.ok) throw new Error("Failed to get case details");
-    return res.json();
+    return handleApiResponse(res, "Failed to get case details");
   }, []);
 
   /* ── 4. Get Assignment View Metadata ───────────────────────── */
@@ -755,7 +787,9 @@ export default function App() {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${tok}` },
     });
-    if (!res.ok) throw new Error("Failed to get assignment metadata");
+    if (!res.ok) {
+      await handleApiResponse(res, "Failed to get assignment metadata");
+    }
     /* Capture If-Match from response headers */
     const etag =
       res.headers.get("If-Match") ||
@@ -882,17 +916,12 @@ export default function App() {
         if (Array.isArray(formValues[key])) {
           formValues[key].forEach((row, idx) => {
             pageInstructions.push({
-              content: {
-                Requirement: row.Requirement || "",
-                Detail: row.Detail || "",
-                RequirementDesc: row.Detail || "",
-                RequirementDescription: row.Detail || "",
-                Level: row.Level || "",
-                RequirementLevel: row.Level || "",
-                RequirementType: row.RequirementType || "",
-                Type: row.RequirementType || "",
-                Status: row.Status || "",
-              },
+              content: Object.keys(row).reduce((acc, k) => {
+                if (!k.startsWith("_") && k !== "classID") {
+                  acc[k] = row[k];
+                }
+                return acc;
+              }, {}),
               target: `.${key}`,
               listIndex: idx + 1,
               instruction: "UPDATE",
@@ -1178,17 +1207,12 @@ export default function App() {
           const pageInstructions = (
             nextContent?.RequirementLists || reqRows
           ).map((row, idx) => ({
-            content: {
-              Requirement: row.Requirement || "",
-              Detail: row.Detail || "",
-              RequirementDesc: row.Detail || "",
-              RequirementDescription: row.Detail || "",
-              Level: row.Level || "",
-              RequirementLevel: row.Level || "",
-              RequirementType: row.RequirementType || "",
-              Type: row.RequirementType || "",
-              Status: row.Status || "",
-            },
+            content: Object.keys(row).reduce((acc, k) => {
+              if (!k.startsWith("_") && k !== "classID") {
+                acc[k] = row[k];
+              }
+              return acc;
+            }, {}),
             target: ".RequirementLists",
             listIndex: idx + 1,
             instruction: "UPDATE",
@@ -1245,17 +1269,12 @@ export default function App() {
     setStep("SUCCESS");
     try {
       const pageInstructions = reviewRows.map((row, idx) => ({
-        content: {
-          Requirement: row.Requirement || "",
-          Detail: row.Detail || "",
-          RequirementDesc: row.Detail || "",
-          RequirementDescription: row.Detail || "",
-          Level: row.Level || "",
-          RequirementLevel: row.Level || "",
-          RequirementType: row.RequirementType || "",
-          Type: row.RequirementType || "",
-          Status: row.Status || "",
-        },
+        content: Object.keys(row).reduce((acc, k) => {
+          if (!k.startsWith("_") && k !== "classID") {
+            acc[k] = row[k];
+          }
+          return acc;
+        }, {}),
         target: ".RequirementLists",
         listIndex: idx + 1,
         instruction: "UPDATE",
