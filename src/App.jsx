@@ -2454,14 +2454,14 @@ export default function App() {
               >
                 ↺ Start Over
               </button>
-              {isRequirementListFlow && (
+              {/* {isRequirementListFlow && (
                 <button
                   className="btn btn-primary"
                   onClick={() => setStep("REVIEW_DOCS")}
                 >
                   ← Back to Review
                 </button>
-              )}
+              )} */}
             </div>
           </div>
         </div>
