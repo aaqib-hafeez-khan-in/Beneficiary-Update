@@ -1,43 +1,43 @@
-# Offline Mock Mode
+# Mock Mode
 
-Mock mode lets the Beneficiary Update UI run without a reachable Pega environment.
+Mock mode lets you run the beneficiary workflow without a Pega environment, OAuth client, or real case data.
 
 ## Enable it
 
-Copy `.env.example` to `.env` and set:
+Set this in `.env`:
 
 ```env
 VITE_MOCK_MODE=true
 ```
 
-Restart Vite after changing environment variables because Vite exposes them at build/start time.
+Then restart the Vite development server:
+
+```bash
+npm run dev
+```
+
+Vite environment variables are evaluated when the application is built, so changing `.env` requires a restart.
 
 ## What it mocks
 
-Mock mode intercepts browser `fetch` calls before the React application starts and provides an in-memory replacement for the normal API workflow:
+When `VITE_MOCK_MODE=true`, the application replaces the browser `fetch` implementation with a local Pega-compatible adapter. The normal React workflow is still used.
 
-1. OAuth client-credentials token request
-2. Worklist / case list
-3. Case details
-4. Assignment view metadata and dynamic form configuration
-5. Attachment upload
-6. Assignment PATCH submission
+The mock adapter covers:
 
-The mock token is `mock-access-token-beneficiary-update` and protected mock endpoints require that bearer token, so the authentication path is exercised rather than bypassed.
+1. OAuth client-credentials authentication and a bearer access token.
+2. The `D_GetWorkListOnAssignment` worklist request.
+3. Case-detail retrieval.
+4. Assignment/view metadata retrieval.
+5. Form submission.
+6. Attachment uploads.
 
-## Sample workflow
+## Demo flow
 
-The mock worklist contains one case:
+The mock workflow uses case `MOCK-BEN-1001` and opens a claimant form populated with sample values. You can edit the fields and submit the assignment without any external API calls.
 
-- Case: `MOCK-CASE-1001`
-- Assignment: `MOCK-ASG-1001`
-- Action: `CollectClaimantDetails`
+The mock token is deliberately synthetic and must never be treated as a real credential.
 
-Opening the case renders a claimant form using mock Pega-style `uiResources`. Editing the fields and submitting the form returns a successful mock response and moves the UI to the existing success state.
-
-Attachments also receive deterministic mock IDs such as `MOCK-ATTACH-<timestamp>`.
-
-## Returning to live APIs
+## Disable it
 
 Set:
 
