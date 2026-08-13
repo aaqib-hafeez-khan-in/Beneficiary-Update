@@ -1,6 +1,4 @@
 const MOCK_MODE = String(import.meta.env.VITE_MOCK_MODE || "false").toLowerCase() === "true";
-
-const originalFetch = globalThis.fetch?.bind(globalThis);
 const MOCK_TOKEN = "mock-access-token-beneficiary-update";
 const MOCK_CASE_ID = "MOCK-CASE-1001";
 const MOCK_ASSIGNMENT_ID = "MOCK-ASG-1001";
