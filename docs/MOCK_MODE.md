@@ -45,8 +45,8 @@ Set:
 VITE_MOCK_MODE=false
 ```
 
-or remove the variable. The application then uses the configured Pega OAuth and API endpoints normally.
+Then restart the development server. The application returns to the normal Pega token and API endpoints without any code changes.
 
-## Tests
+## Safety
 
-The mock adapter has Vitest coverage for token generation, worklist retrieval, case details, assignment metadata, attachment uploads, successful submission, and unknown endpoints.
+Mock mode is frontend-only. It never contacts the configured Pega token, case, assignment, or attachment endpoints while `VITE_MOCK_MODE=true`. It is intended for local development, demonstrations, UI work, and API-outage fallback testing. It must not be treated as a production replacement for the real backend.
