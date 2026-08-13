@@ -132,6 +132,12 @@ const getRequestHeaders = (input, options) => {
   return new Headers();
 };
 
+const getRequestBody = async (input, options) => {
+  if (options.body !== undefined) return options.body;
+  if (typeof input !== "string" && input.body) return input.clone().text();
+  return "";
+};
+
 const requireMockToken = (input, options) => {
   const authorization = getRequestHeaders(input, options).get("Authorization") || "";
   if (authorization !== `Bearer ${MOCK_TOKEN}`) {
@@ -140,14 +146,13 @@ const requireMockToken = (input, options) => {
   return null;
 };
 
-export const createMockFetch = () => async (input, options = {}) => {
+const handleMockRequest = async (input, options = {}) => {
   const url = typeof input === "string" ? input : input.url;
   const method = getRequestMethod(input, options);
 
   if (url.includes("/oauth2/") || url.endsWith("/token")) {
-    const requestBody =
-      options.body || (typeof input !== "string" ? await input.clone().text() : "");
-    const params = new URLSearchParams(requestBody);
+    const requestBody = await getRequestBody(input, options);
+    const params = new URLSearchParams(requestBody || "");
     if (method !== "POST" || params.get("grant_type") !== "client_credentials") {
       return jsonResponse({ message: "Mock token endpoint expects POST client_credentials" }, 400);
     }
@@ -190,7 +195,7 @@ export const createMockFetch = () => async (input, options = {}) => {
   if (url.includes(`/assignments/${MOCK_ASSIGNMENT_ID}/actions/${MOCK_ACTION_ID}`) && method === "PATCH") {
     let payload = {};
     try {
-      const body = options.body || (typeof input !== "string" ? await input.clone().text() : "{}");
+      const body = await getRequestBody(input, options);
       payload = typeof body === "string" ? JSON.parse(body) : {};
     } catch {
       payload = {};
@@ -215,4 +220,6 @@ export const createMockFetch = () => async (input, options = {}) => {
   );
 };
 
-export { MOCK_TOKEN, MOCK_CASE_ID };
+export const createMockFetch = () => handleMockRequest;
+
+export { MOCK_TOKEN, MOCK_CASE_ID, handleMockRequest };
