@@ -1,6 +1,5 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "./mockApi.js";
 import "./index.css";
 import App from "./App.jsx";
 import { createMockFetch } from "./mockApi.js";
