@@ -1,5 +1,7 @@
 const MOCK_TOKEN = "mock-access-token-beneficiary-update";
 const MOCK_CASE_ID = "MOCK-BEN-1001";
+const MOCK_ASSIGNMENT_ID = "MOCK-ASSIGN-1001";
+const MOCK_ACTION_ID = "CollectAdditionalRequirements";
 
 const mockFormContent = {
   ClaimantName: "Ava Thompson",
@@ -21,18 +23,18 @@ const mockCaseInfo = () => ({
   ],
   assignments: [
     {
-      ID: "MOCK-ASSIGN-1001",
+      ID: MOCK_ASSIGNMENT_ID,
       name: "Collect Claimant Details",
       processID: "CollectRequirements_Flow",
-      actions: [{ ID: "CollectAdditionalRequirements" }],
+      actions: [{ ID: MOCK_ACTION_ID }],
       assigneeInfo: { name: "Mock User" },
     },
   ],
   content: { ...mockFormContent },
 });
 
-const mockAssignmentResponse = () => ({
-  data: { caseInfo: mockCaseInfo() },
+const mockAssignmentResponse = (content = mockFormContent) => ({
+  data: { caseInfo: { ...mockCaseInfo(), content: { ...content } } },
   uiResources: {
     resources: {
       fields: {
@@ -121,19 +123,43 @@ const jsonResponse = (body, status = 200, headers = {}) =>
     headers: { "Content-Type": "application/json", ...headers },
   });
 
+const getRequestMethod = (input, options) =>
+  (options.method || (typeof input !== "string" ? input.method : "GET")).toUpperCase();
+
+const getRequestHeaders = (input, options) => {
+  if (options.headers) return new Headers(options.headers);
+  if (typeof input !== "string" && input.headers) return new Headers(input.headers);
+  return new Headers();
+};
+
+const requireMockToken = (input, options) => {
+  const authorization = getRequestHeaders(input, options).get("Authorization") || "";
+  if (authorization !== `Bearer ${MOCK_TOKEN}`) {
+    return jsonResponse({ message: "Mock authentication failed" }, 401);
+  }
+  return null;
+};
+
 export const createMockFetch = () => async (input, options = {}) => {
   const url = typeof input === "string" ? input : input.url;
-  const method = (
-    options.method || (typeof input !== "string" ? input.method : "GET")
-  ).toUpperCase();
+  const method = getRequestMethod(input, options);
 
   if (url.includes("/oauth2/") || url.endsWith("/token")) {
+    const requestBody =
+      options.body || (typeof input !== "string" ? await input.clone().text() : "");
+    const params = new URLSearchParams(requestBody);
+    if (method !== "POST" || params.get("grant_type") !== "client_credentials") {
+      return jsonResponse({ message: "Mock token endpoint expects POST client_credentials" }, 400);
+    }
     return jsonResponse({
       access_token: MOCK_TOKEN,
       token_type: "Bearer",
       expires_in: 3600,
     });
   }
+
+  const authError = requireMockToken(input, options);
+  if (authError) return authError;
 
   if (url.includes("D_GetWorkListOnAssignment")) {
     return jsonResponse({
@@ -149,26 +175,35 @@ export const createMockFetch = () => async (input, options = {}) => {
     });
   }
 
-  if (method === "GET" && /\/cases\//.test(url)) {
+  if (method === "GET" && new URL(url, globalThis.location?.origin || "http://localhost").pathname.includes("/cases/")) {
     return jsonResponse({ data: { caseInfo: mockCaseInfo() } });
   }
 
-  if (url.includes("/assignments/") && method === "GET") {
+  if (url.includes(`/assignments/${MOCK_ASSIGNMENT_ID}/actions/${MOCK_ACTION_ID}`) && method === "GET") {
     return jsonResponse(mockAssignmentResponse(), 200, { ETag: '"mock-etag"' });
   }
 
   if (url.includes("/attachments/upload") && method === "POST") {
-    return jsonResponse({ ID: `MOCK-ATTACH-${Date.now()}` });
+    return jsonResponse({ ID: `MOCK-ATTACH-${Date.now()}` }, 201);
   }
 
-  if (url.includes("/assignments/") && method === "PATCH") {
+  if (url.includes(`/assignments/${MOCK_ASSIGNMENT_ID}/actions/${MOCK_ACTION_ID}`) && method === "PATCH") {
+    let payload = {};
+    try {
+      const body = options.body || (typeof input !== "string" ? await input.clone().text() : "{}");
+      payload = typeof body === "string" ? JSON.parse(body) : {};
+    } catch {
+      payload = {};
+    }
+
     return jsonResponse({
+      ...mockAssignmentResponse({ ...mockFormContent, ...(payload.content || {}) }),
       data: {
         caseInfo: {
           ...mockCaseInfo(),
           status: "Resolved",
           assignments: [],
-          content: { ...mockFormContent },
+          content: { ...mockFormContent, ...(payload.content || {}) },
         },
       },
     });
