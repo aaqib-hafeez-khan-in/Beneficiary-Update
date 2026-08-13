@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { handleMockRequest, MOCK_TOKEN } from "../src/mockApi.js";
+import { handleMockRequest, MOCK_CASE_ID, MOCK_TOKEN } from "../src/mockApi.js";
 
 describe("mock API fallback", () => {
+  const authHeaders = { Authorization: `Bearer ${MOCK_TOKEN}` };
+
   it("issues a mock bearer token for client credentials", async () => {
     const response = await handleMockRequest(
       "https://pega.example.test/prweb/PRRestService/oauth2/v1/token",
@@ -34,7 +36,7 @@ describe("mock API fallback", () => {
       "https://pega.example.test/api/data_views/D_GetWorkListOnAssignment",
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${MOCK_TOKEN}` },
+        headers: authHeaders,
         body: JSON.stringify({
           dataViewParameters: { TaskLabel: "Collect Additional Requirements" },
         }),
@@ -44,38 +46,39 @@ describe("mock API fallback", () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.data).toHaveLength(1);
-    expect(body.data[0].pxRefObjectKey).toBe("MOCK-CASE-1001");
+    expect(body.data[0].pxRefObjectKey).toBe(MOCK_CASE_ID);
   });
 
   it("returns case details and assignment metadata", async () => {
-    const headers = { Authorization: `Bearer ${MOCK_TOKEN}` };
     const caseResponse = await handleMockRequest(
-      "https://pega.example.test/api/cases/MOCK-CASE-1001?viewType=page",
-      { headers },
+      `https://pega.example.test/api/cases/${MOCK_CASE_ID}?viewType=page`,
+      { headers: authHeaders },
     );
     const caseBody = await caseResponse.json();
 
     const metadataResponse = await handleMockRequest(
-      "https://pega.example.test/assignments/MOCK-ASG-1001/actions/CollectClaimantDetails?viewType=form",
-      { headers },
+      "https://pega.example.test/assignments/MOCK-ASSIGN-1001/actions/CollectAdditionalRequirements?viewType=form",
+      { headers: authHeaders },
     );
     const metadataBody = await metadataResponse.json();
 
-    expect(caseBody.data.caseInfo.ID).toBe("MOCK-CASE-1001");
-    expect(caseBody.data.caseInfo.assignments[0].ID).toBe("MOCK-ASG-1001");
-    expect(metadataBody.uiResources.root.config.name).toBe("MockClaimantDetails");
+    expect(caseResponse.status).toBe(200);
+    expect(metadataResponse.status).toBe(200);
+    expect(caseBody.data.caseInfo.ID).toBe(MOCK_CASE_ID);
+    expect(caseBody.data.caseInfo.assignments[0].ID).toBe("MOCK-ASSIGN-1001");
+    expect(metadataBody.uiResources.root.config.name).toBe("MockBeneficiaryForm");
     expect(metadataBody.data.caseInfo.content.ClaimantName).toBe("Ava Thompson");
   });
 
   it("accepts a PATCH submission and returns the updated form values", async () => {
     const response = await handleMockRequest(
-      "https://pega.example.test/assignments/MOCK-ASG-1001/actions/CollectClaimantDetails?viewType=form",
+      "https://pega.example.test/assignments/MOCK-ASSIGN-1001/actions/CollectAdditionalRequirements?viewType=form",
       {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${MOCK_TOKEN}`,
+          ...authHeaders,
           "Content-Type": "application/json",
-          "If-Match": '"mock-v1"',
+          "If-Match": '"mock-etag"',
         },
         body: JSON.stringify({
           content: {
@@ -88,8 +91,10 @@ describe("mock API fallback", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.data.caseInfo.status).toBe("Resolved");
     expect(body.data.caseInfo.content.ClaimantName).toBe("Updated Mock Claimant");
     expect(body.data.caseInfo.content.RelationshipWithInsured).toBe("Son");
+    expect(body.data.caseInfo.assignments).toEqual([]);
   });
 
   it("provides a local attachment id without contacting a real API", async () => {
@@ -97,7 +102,7 @@ describe("mock API fallback", () => {
       "https://pega.example.test/api/attachments/upload",
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${MOCK_TOKEN}` },
+        headers: authHeaders,
       },
     );
     const body = await response.json();
